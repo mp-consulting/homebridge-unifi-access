@@ -199,6 +199,7 @@ describe("UniFi Access event payload schemas", () => {
       DEVICE_UPDATE_V2: "access.data.v2.device.update",
       DOORBELL_CANCEL: "access.remote_view.change",
       DOORBELL_RING: "access.remote_view",
+      LOCATION_DATA_UPDATE: "access.data.location.update",
       LOCATION_UPDATE: "access.data.v2.location.update"
     };
 

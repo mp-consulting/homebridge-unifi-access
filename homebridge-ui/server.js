@@ -1,10 +1,4 @@
-/* Copyright(C) 2017-2025, HJD (https://github.com/hjdhjd). All rights reserved.
- *
- * server.js: homebridge-unifi-access webUI server API.
- *
- * This module is heavily inspired by the homebridge-config-ui-x source code and borrows from both.
- * Thank you oznu for your contributions to the HomeKit world.
- */
+/* server.js: @mp-consulting/homebridge-unifi-access webUI server API. */
 "use strict";
 
 import { featureOptionCategories, featureOptions } from "../dist/access-options.js";

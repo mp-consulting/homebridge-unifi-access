@@ -1,7 +1,4 @@
-/**
- * homebridge-unifi-access Custom UI
- * Bootstrap-based configuration with discovery and feature options.
- */
+/* @mp-consulting/homebridge-unifi-access Custom UI. */
 import { PLUGIN_NAME } from "./modules/constants.js";
 import { getControllers, state } from "./modules/state.js";
 import { $, showScreen } from "./modules/dom-helpers.js";

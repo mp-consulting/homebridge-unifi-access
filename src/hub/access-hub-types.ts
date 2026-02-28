@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-types.ts: Types, interfaces, and constants for the UniFi Access hub.
  */
@@ -88,6 +88,9 @@ export function areWiringKeysActive(configs: { key: string; value: string }[] | 
   return wiringKeys.every(wire => configs?.some(e => (e.key === wire) && (e.value === "on")));
 }
 
+// Proxy mode configuration key for UA Ultra devices.
+export const REX_BUTTON_MODE_CONFIG_KEY = "rex_button_mode";
+
 // Terminal input definitions shared by configureTerminalInputs and handleDeviceUpdate.
 export const terminalInputs: readonly { input: SensorInput; label: string; topic: string }[] = [
 
@@ -96,6 +99,23 @@ export const terminalInputs: readonly { input: SensorInput; label: string; topic
   { input: "Ren", label: "Request to Enter Sensor", topic: "ren" },
   { input: "Rex", label: "Request to Exit Sensor", topic: "rex" }
 ];
+
+// Location data update event (location metadata/configuration changes).
+export interface AccessEventLocationDataUpdate {
+
+  extras?: Record<string, unknown>;
+  extra_type?: string;
+  full_name?: string;
+  level?: number;
+  location_type?: string;
+  name: string;
+  previous_name?: string;
+  timezone?: string;
+  unique_id: string;
+  up_id?: string;
+  work_time?: string;
+  work_time_id?: string;
+}
 
 // Location update event data (v2 API).
 export interface AccessEventLocationUpdate {

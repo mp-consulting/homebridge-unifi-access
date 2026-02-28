@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-services.ts: HomeKit service configuration and state-change reactions for the UniFi Access hub.
  */
@@ -10,7 +10,7 @@ import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWir
 import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from "../settings.js";
 import type { AccessHub } from "./access-hub.js";
 import { hubDoorLockCommand } from "./access-hub-api.js";
-import { doorServiceType, hasCapability, hubInputState, isClosed, isLocked, isWired } from "./access-hub-utils.js";
+import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired } from "./access-hub-utils.js";
 
 // Configure all HomeKit services on the hub. Called once at device setup.
 export function configureServices(hub: AccessHub): void {
@@ -50,8 +50,7 @@ export function registerServiceReactions(hub: AccessHub): void {
       // For UA Gate, lock trigger only (GarageDoorOpener state is driven by DPS events, not lock events).
       if(hub.catalog.usesLocationApi) {
 
-        hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On,
-          data.value !== hub.hap.Characteristic.LockCurrentState.SECURED);
+        hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On, !isLocked(hub, data.value));
 
         return;
       }
@@ -75,15 +74,14 @@ export function registerServiceReactions(hub: AccessHub): void {
 
       if(service) {
 
-        service.updateCharacteristic(hub.hap.Characteristic.LockTargetState, data.value === hub.hap.Characteristic.LockCurrentState.UNSECURED ?
-          hub.hap.Characteristic.LockTargetState.UNSECURED : hub.hap.Characteristic.LockTargetState.SECURED);
+        service.updateCharacteristic(hub.hap.Characteristic.LockTargetState, isLocked(hub, data.value) ?
+          hub.hap.Characteristic.LockTargetState.SECURED : hub.hap.Characteristic.LockTargetState.UNSECURED);
         service.updateCharacteristic(hub.hap.Characteristic.LockCurrentState, data.value);
       }
     }
 
     // Update the lock trigger switch if enabled.
-    hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On,
-      data.value !== hub.hap.Characteristic.LockCurrentState.SECURED);
+    hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On, !isLocked(hub, data.value));
 
     // Log lock state changes.
     if(hub.hints.logLock) {
@@ -163,9 +161,8 @@ export function registerServiceReactions(hub: AccessHub): void {
       return;
     }
 
-    const sensorLabels: Record<string, string> = { Rel: "Remote release", Ren: "Request to enter sensor", Rex: "Request to exit sensor" };
     const logKey = ("log" + data.input) as keyof typeof hub.hints;
-    const label = sensorLabels[data.input];
+    const label = terminalInputs.find(t => t.input === data.input)?.label;
 
     if(label && hub.hints[logKey]) {
 
@@ -310,15 +307,7 @@ function configureDoorbellTrigger(hub: AccessHub): boolean {
 // Configure contact sensors for HomeKit. Availability is determined by a combination of hub model, what's been configured on the hub, and feature options.
 export function configureTerminalInputs(hub: AccessHub): boolean {
 
-  const terminalInputDefs = [
-
-    { input: "Dps", label: "Door Position Sensor" },
-    { input: "Rel", label: "Remote Release" },
-    { input: "Ren", label: "Request to Enter Sensor" },
-    { input: "Rex", label: "Request to Exit Sensor" }
-  ];
-
-  for(const { input, label } of terminalInputDefs) {
+  for(const { input, label } of terminalInputs) {
 
     const hint = ("hasWiring" + input) as HasWiringHintKey;
     const reservedId = AccessReservedNames[("CONTACT_" + input.toUpperCase()) as keyof typeof AccessReservedNames];
@@ -451,7 +440,7 @@ function configureLock(hub: AccessHub): boolean {
   hub._hkLockState = -1;
   service.displayName = hub.accessoryName;
   service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName);
-  hub.hkLockState = hubLockStateFromHub(hub);
+  hub.hkLockState = hubLockState(hub);
 
   service.setPrimaryService(true);
 
@@ -477,7 +466,7 @@ function configureLockService(hub: AccessHub, service: ReturnType<typeof acquire
     // Check if this is just syncing state from an event (current state already matches target).
     const currentState = lockStateGetter();
     const targetLocked = value === hub.hap.Characteristic.LockTargetState.SECURED;
-    const currentlyLocked = currentState === hub.hap.Characteristic.LockCurrentState.SECURED;
+    const currentlyLocked = isLocked(hub, currentState);
 
     // If state already matches, this is just a sync from an event - don't send command.
     if(targetLocked === currentlyLocked) {
@@ -616,7 +605,7 @@ function configureLockTrigger(hub: AccessHub, isSideDoor: boolean): boolean {
 
   // Return the lock state.
   service.getCharacteristic(hub.hap.Characteristic.On)
-    .onGet(() => (isSideDoor ? hub.hkSideDoorLockState : hub.hkLockState) !== hub.hap.Characteristic.LockCurrentState.SECURED);
+    .onGet(() => !isLocked(hub, isSideDoor ? hub.hkSideDoorLockState : hub.hkLockState));
 
   // The state isn't really user-triggerable.
   service.getCharacteristic(hub.hap.Characteristic.On).onSet(async (value: CharacteristicValue) => {
@@ -663,7 +652,7 @@ function configureSideDoorLock(hub: AccessHub): boolean {
   hub._hkSideDoorLockState = -1;
   service.displayName = hub.accessoryName + " Side Door";
   service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName + " Side Door");
-  hub.hkSideDoorLockState = hubSideDoorLockStateFromHub(hub);
+  hub.hkSideDoorLockState = hubLockState(hub, true);
 
   return true;
 }
@@ -685,25 +674,3 @@ function configureTamperDetection(hub: AccessHub, service: ReturnType<typeof acq
   }
 }
 
-// Helper: read the current hub lock state from the device configs (used during initial configuration).
-function hubLockStateFromHub(hub: AccessHub): CharacteristicValue {
-
-  const lockRelayValue = getConfigValue(hub.uda.configs, hub.catalog.lockRelayConfigKey);
-
-  return (lockRelayValue === "off") ? hub.hap.Characteristic.LockCurrentState.SECURED : hub.hap.Characteristic.LockCurrentState.UNSECURED;
-}
-
-// Helper: read the current hub side door lock state from the device configs.
-function hubSideDoorLockStateFromHub(hub: AccessHub): CharacteristicValue {
-
-  const sideDoorLockKey = hub.catalog.sideDoor?.lockRelayConfigKey;
-
-  if(!sideDoorLockKey) {
-
-    return hub.hap.Characteristic.LockCurrentState.SECURED;
-  }
-
-  const lockRelayValue = getConfigValue(hub.uda.configs, sideDoorLockKey);
-
-  return (lockRelayValue === "off") ? hub.hap.Characteristic.LockCurrentState.SECURED : hub.hap.Characteristic.LockCurrentState.UNSECURED;
-}

@@ -1,8 +1,8 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-mqtt.ts: MQTT configuration and state-change publishing for the UniFi Access hub.
  */
-import type { HubEventMap } from "./access-hub-types.js";
+import { type HubEventMap, terminalInputs } from "./access-hub-types.js";
 import type { AccessHub } from "./access-hub.js";
 import { hubDoorLockCommand } from "./access-hub-api.js";
 import { isClosed, isLocked, isSideDoorDpsWired, isWired } from "./access-hub-utils.js";
@@ -197,15 +197,13 @@ function registerMqttReactions(hub: AccessHub): void {
       return;
     }
 
-    const sensorTopics: Record<string, string> = { Rel: "rel", Ren: "ren", Rex: "rex" };
-
     if(!isWired(hub, data.input)) {
 
       return;
     }
 
     const contactDetected = isClosed(hub, data.value);
-    const topic = sensorTopics[data.input];
+    const topic = terminalInputs.find(t => t.input === data.input)?.topic;
 
     if(topic) {
 

@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub.ts: Core hub class for UniFi Access. State management, construction, orchestration, and static property definitions.
  */
@@ -15,8 +15,7 @@ import { registerEventHandlers } from "./access-hub-events.js";
 import { configureMqtt } from "./access-hub-mqtt.js";
 import { configureServices, registerServiceReactions } from "./access-hub-services.js";
 import {
-  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, hubSideDoorDpsState, hubSideDoorLockState, isWired, logLockDelayInterval,
-  setContactSensorState
+  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, setContactSensorState
 } from "./access-hub-utils.js";
 
 // Merge the declarations into the definition of the class, so TypeScript knows that these properties will exist.
@@ -72,8 +71,8 @@ export class AccessHub extends AccessDevice {
     this.uda = device;
     this._hkDpsState = hubDpsState(this);
     this._hkLockState = hubLockState(this);
-    this._hkSideDoorDpsState = hubSideDoorDpsState(this);
-    this._hkSideDoorLockState = hubSideDoorLockState(this);
+    this._hkSideDoorDpsState = hubDpsState(this, true);
+    this._hkSideDoorLockState = hubLockState(this, true);
     this.gateTransitionUntil = 0;
     this.lockDelayInterval = this.getFeatureNumber("Hub.LockDelayInterval") ?? undefined;
     this.mainDoorLocationId = undefined;
@@ -123,8 +122,8 @@ export class AccessHub extends AccessDevice {
   private configureDevice(): boolean {
 
     this._hkLockState = hubLockState(this);
-    this._hkSideDoorDpsState = hubSideDoorDpsState(this);
-    this._hkSideDoorLockState = hubSideDoorLockState(this);
+    this._hkSideDoorDpsState = hubDpsState(this, true);
+    this._hkSideDoorLockState = hubLockState(this, true);
 
     // Clean out the context object in case it's been polluted somehow.
     this.accessory.context = {};

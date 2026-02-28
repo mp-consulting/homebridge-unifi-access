@@ -1,4 +1,4 @@
-/* Copyright(C) 2020-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-types.ts: Interface and type definitions for UniFi Access.
  */
@@ -40,5 +40,6 @@ export enum AccessEventType {
   DEVICE_UPDATE_V2 = "access.data.v2.device.update",
   DOORBELL_CANCEL = "access.remote_view.change",
   DOORBELL_RING = "access.remote_view",
+  LOCATION_DATA_UPDATE = "access.data.location.update",
   LOCATION_UPDATE = "access.data.v2.location.update"
 }

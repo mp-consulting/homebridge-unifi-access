@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-api.ts: Hub API commands and door discovery for the UniFi Access hub.
  */

@@ -1,5 +1,5 @@
-import { CATEGORY_COLORS, CATEGORY_ICONS } from "./constants.js";
 import { $, escapeHtml, showScreen } from "./dom-helpers.js";
+import { CATEGORY_COLORS, CATEGORY_ICONS } from "./constants.js";
 import { getControllers, saveConfigSilent, state } from "./state.js";
 
 export const openFeatureOptions = async (controllerIndex) => {
@@ -20,7 +20,7 @@ export const openFeatureOptions = async (controllerIndex) => {
 
     const [ optionsData, devices ] = await Promise.all([
       homebridge.request("/getOptions"),
-      homebridge.request("/getDevices", { address: ctrl.address, username: ctrl.username, password: ctrl.password })
+      homebridge.request("/getDevices", { address: ctrl.address, password: ctrl.password, username: ctrl.username })
     ]);
 
     state.categories = optionsData.categories;
@@ -44,7 +44,7 @@ export const openFeatureOptions = async (controllerIndex) => {
       for(const device of devices) {
 
 
-        device.name = device.name || device.alias || device.display_model;
+        device.name ||= device.alias || device.display_model;
         device.serialNumber = (device.mac || "").replace(/:/g, "").toUpperCase() +
           ((device.device_type === "UAH-Ent") ? "-" + (device.source_id || "").toUpperCase() : "");
 
@@ -120,7 +120,7 @@ const getCurrentScope = () => {
 
   const val = $("scopeSelect").value;
 
-  if(val === "global") { return { type: "global", id: null, device: null }; }
+  if(val === "global") { return { device: null, id: null, type: "global" }; }
 
   const colonIdx = val.indexOf(":");
   const type = val.substring(0, colonIdx);
@@ -129,12 +129,12 @@ const getCurrentScope = () => {
   if(type === "controller") {
 
 
-    return { type: "controller", id, device: null };
+    return { device: null, id, type: "controller" };
   }
 
   const device = state.devices.find(d => d.serialNumber === id);
 
-  return { type: "device", id, device };
+  return { device, id, type: "device" };
 };
 
 const SCOPE_ORDER = [ "global", "controller", "device" ];
@@ -178,9 +178,9 @@ const updateCascade = (scopeType) => {
   const hints = {
 
 
-    global: [ "Editing this scope", "Inherits global", "Inherits global" ],
     controller: [ "Base values", "Editing this scope", "Inherits controller" ],
-    device: [ "Base values", "Intermediate", "Editing this scope" ]
+    device: [ "Base values", "Intermediate", "Editing this scope" ],
+    global: [ "Editing this scope", "Inherits global", "Inherits global" ]
   };
 
   cascade.querySelectorAll(".scope-level").forEach((el, i) => {
@@ -310,6 +310,7 @@ export const renderOptions = () => {
 
     const progressPct = validOptions.length ? Math.round((enabledCount / categoryOptions.length) * 100) : 0;
 
+    /* eslint-disable no-restricted-syntax */
     header.innerHTML = `
       <div class="d-flex align-items-center">
         <span class="category-icon" style="background-color: ${color}"><i class="fas ${icon}"></i></span>
@@ -324,6 +325,7 @@ export const renderOptions = () => {
         <i class="fas fa-chevron-${isOpen ? "up" : "down"} toggle-icon"></i>
       </div>
     `;
+    /* eslint-enable no-restricted-syntax */
 
     const body = document.createElement("div");
 
@@ -371,6 +373,7 @@ export const renderOptions = () => {
   // Update modified summary.
   const summaryEl = $("modifiedSummary");
 
+  /* eslint-disable-next-line no-restricted-syntax */
   summaryEl.textContent = totalModified ? `(${totalModified})` : "";
   summaryEl.className = totalModified ? "text-warning" : "";
 };
@@ -438,7 +441,7 @@ const getOptionState = (optionKey, opt, scope) => {
 
       const match = regex.exec(entry);
 
-      if(match) { return { explicit: true, enabled: match[1].toLowerCase() === "enable", scope: scope.type }; }
+      if(match) { return { enabled: match[1].toLowerCase() === "enable", explicit: true, scope: scope.type }; }
     }
   }
 
@@ -458,7 +461,7 @@ const getOptionState = (optionKey, opt, scope) => {
 
         const match = regex.exec(entry);
 
-        if(match) { return { explicit: false, enabled: match[1].toLowerCase() === "enable", scope: "controller" }; }
+        if(match) { return { enabled: match[1].toLowerCase() === "enable", explicit: false, scope: "controller" }; }
       }
     }
   }
@@ -471,10 +474,10 @@ const getOptionState = (optionKey, opt, scope) => {
 
     const match = globalRegex.exec(entry);
 
-    if(match) { return { explicit: scope.type === "global", enabled: match[1].toLowerCase() === "enable", scope: "global" }; }
+    if(match) { return { enabled: match[1].toLowerCase() === "enable", explicit: scope.type === "global", scope: "global" }; }
   }
 
-  return { explicit: false, enabled: opt.default, scope: "default" };
+  return { enabled: opt.default, explicit: false, scope: "default" };
 };
 
 const createOptionItem = (optionKey, opt, scope, category) => {
@@ -517,6 +520,7 @@ const createOptionItem = (optionKey, opt, scope, category) => {
     const scopeColor = scope.type === "device" ? "info" : scope.type === "controller" ? "success" : "warning";
     const scopeLabel = scope.type === "device" ? "device" : scope.type === "controller" ? "controller" : "global";
 
+    /* eslint-disable-next-line no-restricted-syntax */
     scopeIndicator = `<span class="badge bg-${scopeColor} ms-1">${scopeLabel}</span>`;
   } else if(optState.scope === "controller") {
 
@@ -532,7 +536,14 @@ const createOptionItem = (optionKey, opt, scope, category) => {
   const displayName = opt.name || category.description.replace(/ feature options\.?/i, "");
 
   // Default value indicator.
-  const defaultIndicator = `<span class="default-indicator ${opt.default ? "default-on" : "default-off"} ms-2">default: ${opt.default ? "on" : "off"}</span>`;
+  /* eslint-disable no-restricted-syntax */
+  const defaultIndicator =
+    `<span class="default-indicator ${opt.default ? "default-on" : "default-off"} ms-2">default: ${opt.default ? "on" : "off"}</span>`;
+
+  const resetButton = optState.explicit ?
+    "<button class=\"btn btn-outline-secondary btn-sm reset-option-btn flex-shrink-0 mt-1\" title=\"Reset to inherited value\">" +
+      "<i class=\"fas fa-undo\"></i></button>" :
+    "";
 
   el.innerHTML = `
     <div class="d-flex justify-content-between align-items-start">
@@ -547,12 +558,11 @@ const createOptionItem = (optionKey, opt, scope, category) => {
         </div>
         <div class="option-description text-muted ms-4">${escapeHtml(opt.description)}</div>
       </div>
-      ${optState.explicit ? "<button class=\"btn btn-outline-secondary btn-sm reset-option-btn flex-shrink-0 mt-1\" title=\"Reset to inherited value\"><i class=\"fas fa-undo\"></i></button>" : ""}
+      ${resetButton}
     </div>
   `;
 
-  el.querySelector(`#${switchId}`).addEventListener("change", function() {
-
+  el.querySelector(`#${switchId}`).addEventListener("change", function() { /* eslint-enable no-restricted-syntax */
 
     setOption(optionKey, this.checked, scope, opt);
   });
@@ -576,11 +586,7 @@ const createOptionItem = (optionKey, opt, scope, category) => {
 const setOption = (optionKey, enabled, scope, opt) => {
 
 
-  if(!state.pluginConfig[0].options) {
-
-
-    state.pluginConfig[0].options = [];
-  }
+  state.pluginConfig[0].options ||= [];
 
   const scopeId = scope.id;
   const suffix = scopeId ? "." + scopeId : "";
@@ -593,7 +599,7 @@ const setOption = (optionKey, enabled, scope, opt) => {
   // Only add an explicit entry if the value differs from the inherited/default state.
   const inherited = opt ? getOptionState(optionKey, opt, scope) : null;
 
-  if(!inherited || inherited.enabled !== enabled) {
+  if(!inherited || (inherited.enabled !== enabled)) {
 
     state.pluginConfig[0].options.push((enabled ? "Enable" : "Disable") + "." + optionKey + suffix);
   }

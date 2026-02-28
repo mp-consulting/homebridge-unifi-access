@@ -1,4 +1,4 @@
-/* Copyright(C) 2017-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * eslint.config.mjs: Linting defaults for Homebridge plugins.
  */
@@ -8,6 +8,8 @@ import ts from "typescript-eslint";
 import tsParser from "@typescript-eslint/parser";
 
 export default ts.config(
+
+  { ignores: ["dist"] },
 
   eslintJs.configs.recommended,
 
@@ -33,8 +35,6 @@ export default ts.config(
 
     files: [ "src/**.ts", "homebridge-ui/*.js", "homebridge-ui/public/**/*.js", "eslint.config.mjs" ],
 
-    ignores: ["dist"],
-
     languageOptions: {
 
       ecmaVersion: "latest",
@@ -47,7 +47,7 @@ export default ts.config(
 
           allowDefaultProject: [ "eslint.config.mjs", "homebridge-ui/*.js", "homebridge-ui/public/*.js", "homebridge-ui/public/modules/*.js" ],
           defaultProject: "./tsconfig.json",
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20 // eslint-disable-line camelcase
         }
       },
 

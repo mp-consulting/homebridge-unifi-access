@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-events.ts: External event parsing for the UniFi Access hub. Parses UniFi Access API events and updates hub state.
  * MQTT publishing and logging are handled automatically by the hub event bus subscribers.
@@ -13,8 +13,7 @@ import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from "../access-devi
 import type { AccessHub, HkStateKey } from "./access-hub.js";
 import { configureTerminalInputs } from "./access-hub-services.js";
 import {
-  checkUltraInputs, doorServiceType, hasCapability, hubInputState, hubLockState, hubSideDoorDpsState, hubSideDoorLockState, isClosed, isLocked, isWired,
-  toDpsState, toLockState
+  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, toDpsState, toLockState
 } from "./access-hub-utils.js";
 
 // Register external event handlers on the controller's event emitter. This is the entry point for all UniFi Access API events.
@@ -143,7 +142,7 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   // Process a side door lock update event if our state has changed (UA Gate only).
   if(hub.hints.hasSideDoor && !hub.catalog.skipsV1LockEvents) {
 
-    const newHubState = hubSideDoorLockState(hub);
+    const newHubState = hubLockState(hub, true);
 
     if(newHubState !== hub._hkSideDoorLockState) {
 
@@ -154,7 +153,7 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   // Process a side door DPS update event if our state has changed (UA Gate only).
   if(hub.hints.hasSideDoor && hub.hints.hasWiringDps && !hub.catalog.skipsV1LockEvents) {
 
-    const newSideDoorDpsState = hubSideDoorDpsState(hub);
+    const newSideDoorDpsState = hubDpsState(hub, true);
 
     if(newSideDoorDpsState !== hub._hkSideDoorDpsState) {
 

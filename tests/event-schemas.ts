@@ -7,7 +7,7 @@
  * When the UniFi Access API changes, update schemas here and both consumers pick up the changes automatically.
  */
 import type { AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from "unifi-access";
-import type { AccessEventDeviceUpdateV2, AccessEventLocationUpdate } from "../src/hub/access-hub-types.js";
+import type { AccessEventDeviceUpdateV2, AccessEventLocationDataUpdate, AccessEventLocationUpdate } from "../src/hub/access-hub-types.js";
 
 // ---- Schema definition types ----
 
@@ -101,6 +101,23 @@ export const locationStateElementSchema: SchemaDefinition = {
   "manually_action_button_number":      { required: false, type: "number" }
 };
 
+// access.data.location.update (location metadata/configuration changes).
+export const locationDataUpdateSchema: SchemaDefinition = {
+
+  "extras":                   { required: false, type: "object" },
+  "extra_type":               { required: false, type: "string" },
+  "full_name":                { required: false, type: "string" },
+  "level":                    { required: false, type: "number" },
+  "location_type":            { required: false, type: "string" },
+  "name":                     { required: true,  type: "string" },
+  "previous_name":            { required: false, type: "string" },
+  "timezone":                 { required: false, type: "string" },
+  "unique_id":                { required: true,  type: "string" },
+  "up_id":                    { required: false, type: "string" },
+  "work_time":                { required: false, type: "string" },
+  "work_time_id":             { required: false, type: "string" }
+};
+
 // access.data.v2.location.update.
 export const locationUpdateSchema: SchemaDefinition = {
 
@@ -124,6 +141,13 @@ export const locationUpdateSchema: SchemaDefinition = {
 export const baseInfoSchema: SchemaDefinition = {
 
   "top_log_count":            { required: true,  type: "number" }
+};
+
+// access.data.top_log.update (log/analytics summary).
+export const topLogUpdateSchema: SchemaDefinition = {
+
+  "buckets":                  { required: true,  type: "object" },
+  "hits":                     { required: true,  type: "object" }
 };
 
 // access.logs.add (activity log entry).
@@ -160,6 +184,8 @@ export const eventSchemas: Record<string, { name: string; schema: SchemaDefiniti
     ]
   },
 
+  "access.data.location.update":        { name: "LOCATION_DATA_UPDATE", schema: locationDataUpdateSchema },
+  "access.data.top_log.update":        { name: "TOP_LOG_UPDATE", schema: topLogUpdateSchema },
   "access.data.v2.location.update":     { name: "LOCATION_UPDATE", schema: locationUpdateSchema },
   "access.logs.add":                    { name: "LOGS_ADD", schema: logsAddSchema },
   "access.logs.insights.add":          { name: "LOGS_INSIGHTS_ADD", schema: logsInsightsAddSchema },
@@ -349,6 +375,13 @@ export const referenceDeviceUpdateV2: AccessEventDeviceUpdateV2 = {
     location_id: "loc-001",
     lock: "locked"
   }]
+};
+
+// LOCATION_DATA_UPDATE data payload.
+export const referenceLocationDataUpdate: AccessEventLocationDataUpdate = {
+
+  name: "Main Gate",
+  unique_id: "fabbf3cf-5fa4-489d-bf34-a3af49531685"
 };
 
 // LOCATION_UPDATE data payload.

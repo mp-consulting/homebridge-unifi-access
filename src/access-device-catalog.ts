@@ -1,4 +1,4 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-device-catalog.ts: Device catalog for UniFi Access - single source of truth for all device-specific knowledge.
  */

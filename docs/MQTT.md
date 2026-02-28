@@ -1,28 +1,25 @@
-<SPAN ALIGN="CENTER" STYLE="text-align:center">
-<DIV ALIGN="CENTER" STYLE="text-align:center">
+<div align="center">
 
 ![homebridge-unifi-access: Native HomeKit support for UniFi Access](media/homebridge-unifi-access.svg)
 
 # Homebridge UniFi Access
 
-[![Downloads](https://img.shields.io/npm/dt/homebridge-unifi-access?color=%230559C9&logo=icloud&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/homebridge-unifi-access)
-[![Version](https://img.shields.io/npm/v/homebridge-unifi-access?color=%230559C9&label=Latest%20Version&logo=ubiquiti&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/homebridge-unifi-access)
-[![UniFi Access@Homebridge Discord](https://img.shields.io/discord/432663330281226270?color=0559C9&label=Discord&logo=discord&logoColor=%23FFFFFF&style=for-the-badge)](https://discord.gg/QXqfHEW)
+[![Downloads](https://img.shields.io/npm/dt/@mp-consulting/homebridge-unifi-access?color=%230559C9&logo=icloud&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/@mp-consulting/homebridge-unifi-access)
+[![Version](https://img.shields.io/npm/v/@mp-consulting/homebridge-unifi-access?color=%230559C9&label=Latest%20Version&logo=ubiquiti&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/@mp-consulting/homebridge-unifi-access)
 [![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=for-the-badge&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
+[![License](https://img.shields.io/npm/l/@mp-consulting/homebridge-unifi-access?color=%230559C9&logo=open%20source%20initiative&logoColor=%23FFFFFF&style=for-the-badge)](../LICENSE.md)
 
-## Complete HomeKit support for the UniFi Access ecosystem using [Homebridge](https://homebridge.io).
-</DIV>
-</SPAN>
+Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecosystem using [Homebridge](https://homebridge.io).
 
-`homebridge-unifi-access` is a [Homebridge](https://homebridge.io) plugin that provides HomeKit support to the [UniFi Access](https://ui.com/door-access) device ecosystem. [UniFi Access](https://ui.com/door-access) is [Ubiquiti's](https://www.ui.com) door access security platform, with doorbell, reader, lock, and controller hardware options for you to choose from, as well as an app which you can use to view, configure and manage your door access security.
+</div>
+
+`@mp-consulting/homebridge-unifi-access` is a [Homebridge](https://homebridge.io) plugin that provides HomeKit support to the [UniFi Access](https://ui.com/door-access) device ecosystem. [UniFi Access](https://ui.com/door-access) is [Ubiquiti's](https://www.ui.com) door access security platform, with doorbell, reader, lock, and controller hardware options for you to choose from, as well as an app which you can use to view, configure and manage your door access security.
 
 ### MQTT Support
 
 [MQTT](https://mqtt.org) is a popular Internet of Things (IoT) messaging protocol that can be used to weave together different smart devices and orchestrate or instrument them in an infinite number of ways. In short - it lets things that might not normally be able to talk to each other communicate across ecosystems, provided they can support MQTT.
 
-I've provided MQTT support for those that are interested - I'm genuinely curious, if not a bit skeptical, at how many people actually want to use this capability. MQTT has a lot of nerd-credibility, and it was a fun side project to mess around with. :smile:
-
-`homebridge-unifi-access` will publish MQTT events if you've configured a broker in the controller-specific settings. The plugin supports a rich set of capabilities over MQTT. This includes:
+`@mp-consulting/homebridge-unifi-access` will publish MQTT events if you've configured a broker in the controller-specific settings. The plugin supports a rich set of capabilities over MQTT, including:
 
   * Doorbell ring events.
   * Lock events, including triggering locks via MQTT.
@@ -52,11 +49,11 @@ unifi/access/1234567890AB/lock
 unifi/access/ABCDEF123456/doorbell
 ```
 
-In the above example, `1234567890AB` and `ABCDEF123456` are the MAC addresses of your Access hub or other devices. We use MAC addresses as an easy way to guarantee unique identifiers that won't change. `homebridge-unifi-access` provides you information about your devices and their respective MAC addresses in the homebridge log on startup. Additionally, you can use the UniFi Access app or webUI to lookup what the MAC addresses are of your devices, should you need to do so.
+In the above example, `1234567890AB` and `ABCDEF123456` are the MAC addresses of your Access hub or other devices. We use MAC addresses as an easy way to guarantee unique identifiers that won't change. `@mp-consulting/homebridge-unifi-access` provides you information about your devices and their respective MAC addresses in the homebridge log on startup. Additionally, you can use the UniFi Access app or webUI to lookup what the MAC addresses are of your devices, should you need to do so.
 
 ### <A NAME="publish"></A>Topics Published
 
-The topics and messages that `homebridge-unifi-access` publishes are:
+The topics and messages that `@mp-consulting/homebridge-unifi-access` publishes are:
 
 #### Door and Lock Topics
 
@@ -83,11 +80,11 @@ The topics and messages that `homebridge-unifi-access` publishes are:
 | `motion`              | `true` when motion detected, `false` when motion ends. | Motion detection events.
 | `telemetry`           | JSON payload of raw event data. | Published when `Controller.Publish.Telemetry` is enabled.
 
-Messages are published to MQTT when an action occurs on an Access device that triggers the respective event, or when an MQTT message is received for one of the topics `homebridge-unifi-access` subscribes to.
+Messages are published to MQTT when an action occurs on an Access device that triggers the respective event, or when an MQTT message is received for one of the topics `@mp-consulting/homebridge-unifi-access` subscribes to.
 
 ### <A NAME="subscribe"></A>Topics Subscribed
 
-The topics that `homebridge-unifi-access` subscribes to are:
+The topics that `@mp-consulting/homebridge-unifi-access` subscribes to are:
 
 #### Door and Lock Topics
 

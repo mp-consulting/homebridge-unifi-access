@@ -27,7 +27,7 @@ Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecos
 
 ## About
 
-`@mp-consulting/homebridge-unifi-access` is a [Homebridge](https://homebridge.io) plugin that provides HomeKit support for the [UniFi Access](https://ui.com/door-access) device ecosystem. [UniFi Access](https://ui.com/door-access) is [Ubiquiti's](https://www.ui.com) door access security platform, with doorbell, reader, lock, and controller hardware options, as well as an app to view, configure, and manage your door access security.
+`@mp-consulting/homebridge-unifi-access` is a [Homebridge](https://homebridge.io) plugin that provides HomeKit support for [Ubiquiti's](https://www.ui.com) [UniFi Access](https://ui.com/door-access) door access security platform — including doorbell, reader, lock, and controller hardware.
 
 This plugin discovers all your supported UniFi Access devices and makes them available in HomeKit with minimal configuration. It supports all known UniFi Access controller configurations (UniFi CloudKey Gen2+, UniFi Dream Machine Pro/SE, UniFi NVR, etc.) and uses the native UniFi Access events API for realtime event capturing.
 
@@ -90,7 +90,7 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 }
 ```
 
-> A sample configuration file is available at [`tests/hbConfig/config.sample.json`](tests/hbConfig/config.sample.json).
+> A sample configuration file is available at [`config.sample.json`](tests/fixtures/config.sample.json).
 
 ### Optional Settings
 
@@ -106,8 +106,8 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 
 - [Feature Options](docs/FeatureOptions.md) - show/hide devices and customize behavior
 - [MQTT](docs/MQTT.md) - configure MQTT event publishing
-- [UniFi Access API](https://github.com/hjdhjd/unifi-access) - native API documentation
-- [GitHub Repository](https://github.com/mp-consulting/homebridge-unifi-access) - source code and issue tracker
+- [UniFi Access API](https://www.npmjs.com/package/unifi-access) - native API library
+- [Changelog](CHANGELOG.md) - release notes and version history
 
 ## Contributing
 
@@ -152,8 +152,8 @@ Sample output:
   + data.new_field: unexpected_field — Type: string
 ```
 
-When mismatches are found, update the schemas in `scripts/event-schema-monitor.ts` and the type definitions in `src/hub/access-hub-types.ts` to match the new API.
+When mismatches are found, update the schemas in `tests/event-schemas.ts` (the single source of truth) and the type definitions in `src/hub/access-hub-types.ts` to match the new API.
 
 ## License
 
-[ISC](LICENSE.md)
+[MIT](LICENSE.md)

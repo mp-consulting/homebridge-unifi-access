@@ -1,11 +1,11 @@
-/* Copyright(C) 2019-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+/* Copyright(C) 2026, Mickael Palma. All rights reserved.
  *
  * access-hub-utils.ts: Pure utility functions for the UniFi Access hub.
  */
 import type { CharacteristicValue } from "homebridge";
 import type { SensorInput } from "../access-device-catalog.js";
 import { AccessReservedNames } from "../access-types.js";
-import { areWiringKeysActive, type DoorServiceType, getConfigValue, type HasWiringHintKey } from "./access-hub-types.js";
+import { REX_BUTTON_MODE_CONFIG_KEY, areWiringKeysActive, type DoorServiceType, getConfigValue, type HasWiringHintKey } from "./access-hub-types.js";
 import type { AccessHub } from "./access-hub.js";
 
 // Convert lock string value to HomeKit LockCurrentState.
@@ -63,7 +63,7 @@ export function isWired(hub: AccessHub, input: SensorInput): boolean {
   // Proxy mode devices use extension config instead of wiring keys.
   if(sensorConfig.proxyMode) {
 
-    return hub.uda.extensions?.[0]?.target_config?.some(e => (e.config_key === "rex_button_mode") && (e.config_value === sensorConfig.proxyMode)) ?? false;
+    return hub.uda.extensions?.[0]?.target_config?.some(e => (e.config_key === REX_BUTTON_MODE_CONFIG_KEY) && (e.config_value === sensorConfig.proxyMode)) ?? false;
   }
 
   if(!sensorConfig.wiringKeys) {
@@ -102,7 +102,7 @@ export function checkUltraInputs(hub: AccessHub): void {
 
     // Is the mode enabled on the hub?
     const isEnabled = hub.uda.extensions?.[0]?.target_config
-      ?.some(entry => (entry.config_key === "rex_button_mode") && (entry.config_value === sensorConfig.proxyMode));
+      ?.some(entry => (entry.config_key === REX_BUTTON_MODE_CONFIG_KEY) && (entry.config_value === sensorConfig.proxyMode));
 
     if(hub.hints[hint] && !isEnabled) {
 
@@ -136,49 +136,40 @@ export function hubInputState(hub: AccessHub, input: SensorInput): Characteristi
 }
 
 // Return the current state of the DPS on the hub.
-export function hubDpsState(hub: AccessHub): CharacteristicValue {
+export function hubDpsState(hub: AccessHub, isSideDoor = false): CharacteristicValue {
+
+  if(isSideDoor) {
+
+    if(!isSideDoorDpsWired(hub)) {
+
+      return hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+    }
+
+    const configKey = hub.catalog.sideDoor?.dpsConfigKey;
+
+    if(!configKey) {
+
+      return hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+    }
+
+    return (getConfigValue(hub.uda.configs, configKey) === "on") ? hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED :
+      hub.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+  }
 
   return hubInputState(hub, "Dps");
 }
 
-// Return the current state of the side door DPS on the hub.
-export function hubSideDoorDpsState(hub: AccessHub): CharacteristicValue {
+// Return the current state of the relay lock on the hub.
+export function hubLockState(hub: AccessHub, isSideDoor = false): CharacteristicValue {
 
-  if(!isSideDoorDpsWired(hub)) {
-
-    return hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
-  }
-
-  const configKey = hub.catalog.sideDoor?.dpsConfigKey;
+  const configKey = isSideDoor ? hub.catalog.sideDoor?.lockRelayConfigKey : hub.catalog.lockRelayConfigKey;
 
   if(!configKey) {
-
-    return hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
-  }
-
-  return (getConfigValue(hub.uda.configs, configKey) === "on") ? hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED :
-    hub.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
-}
-
-// Return the current state of the relay lock on the hub.
-export function hubLockState(hub: AccessHub): CharacteristicValue {
-
-  const lockRelayValue = getConfigValue(hub.uda.configs, hub.catalog.lockRelayConfigKey);
-
-  return (lockRelayValue === "off") ? hub.hap.Characteristic.LockCurrentState.SECURED : hub.hap.Characteristic.LockCurrentState.UNSECURED;
-}
-
-// Return the current state of the side door relay lock on the hub.
-export function hubSideDoorLockState(hub: AccessHub): CharacteristicValue {
-
-  const sideDoorLockKey = hub.catalog.sideDoor?.lockRelayConfigKey;
-
-  if(!sideDoorLockKey) {
 
     return hub.hap.Characteristic.LockCurrentState.SECURED;
   }
 
-  const lockRelayValue = getConfigValue(hub.uda.configs, sideDoorLockKey);
+  const lockRelayValue = getConfigValue(hub.uda.configs, configKey);
 
   return (lockRelayValue === "off") ? hub.hap.Characteristic.LockCurrentState.SECURED : hub.hap.Characteristic.LockCurrentState.UNSECURED;
 }
