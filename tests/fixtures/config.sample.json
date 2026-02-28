@@ -1,0 +1,35 @@
+{
+    "bridge": {
+        "name": "UniFiAccessBridge",
+        "username": "1E:4A:43:25:51:BA",
+        "port": 51826,
+        "pin": "936-00-764"
+    },
+    "description": "HomeBridge UniFi Access Dev",
+    "plugins": [
+        "homebridge-config-ui-x"
+    ],
+    "platforms": [
+        {
+            "name": "Config",
+            "port": 8581,
+            "auth": "none",
+            "theme": "grey",
+            "tempUnits": "c",
+            "lang": "auto",
+            "platform": "config"
+        },
+        {
+            "platform": "UniFi Access",
+            "name": "UniFi Access",
+            "controllers": [
+                {
+                    "address": "192.168.1.1",
+                    "username": "your-username",
+                    "password": "your-password"
+                }
+            ]
+        }
+    ],
+    "accessories": []
+}

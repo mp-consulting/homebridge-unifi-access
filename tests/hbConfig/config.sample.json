@@ -1,0 +1,11 @@
+{
+    "platform": "UniFi Access",
+    "name": "UniFi Access",
+    "controllers": [
+        {
+            "address": "1.2.3.4",
+            "username": "homebridge",
+            "password": "your-password-here"
+        }
+    ]
+}

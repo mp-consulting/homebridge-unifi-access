@@ -1,0 +1,83 @@
+{
+  "name": "@mp-consulting/homebridge-unifi-access",
+  "version": "1.0.0",
+  "displayName": "UniFi Access",
+  "description": "Complete HomeKit support for UniFi Access devices — locks, doorbells, sensors, and readers — with automatic device discovery and realtime events.",
+  "author": "Mickael Palma",
+  "homepage": "https://github.com/mp-consulting/homebridge-unifi-access#readme",
+  "license": "MIT",
+  "funding": {
+    "type": "paypal",
+    "url": "https://paypal.me/mickaelpalma"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mp-consulting/homebridge-unifi-access.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mp-consulting/homebridge-unifi-access/issues"
+  },
+  "type": "module",
+  "engines": {
+    "homebridge": ">=1.8.0 || >=2.0.0",
+    "node": ">=18"
+  },
+  "keywords": [
+    "homebridge",
+    "homebridge-plugin",
+    "homebridge-unifi-access",
+    "homekit",
+    "camera",
+    "doorbell",
+    "ubiquiti",
+    "unifi",
+    "unifi access",
+    "unifi protect",
+    "motion",
+    "motion sensor",
+    "security",
+    "udm",
+    "udm pro",
+    "udm-pro",
+    "unifi camera",
+    "unifi cloud key",
+    "unifi dream machine pro",
+    "unifios"
+  ],
+  "scripts": {
+    "prebuild": "npm run clean",
+    "build": "tsc",
+    "clean": "shx rm -rf dist",
+    "lint": "eslint --max-warnings=${ESLINT_MAX_WARNINGS:-\"-1\"} eslint.config.mjs src homebridge-ui/*.js homebridge-ui/public/*.js homebridge-ui/public/modules/*.js",
+    "postpublish": "npm run clean",
+    "prepublishOnly": "npm run lint && npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "watch": "npm run build && npm link && nodemon",
+    "start": "npm run build && homebridge -U ./test/hbConfig -D -I -P .",
+    "monitor:events": "npx tsx scripts/event-schema-monitor.ts"
+  },
+  "main": "dist/index.js",
+  "dependencies": {
+    "@homebridge/plugin-ui-utils": "2.1.2",
+    "homebridge-plugin-utils": "1.30.0",
+    "unifi-access": "1.5.3"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "5.7.1",
+    "@types/node": "25.0.10",
+    "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "9.39.2",
+    "homebridge": "1.11.1",
+    "homebridge-config-ui-x": "^4.80.0",
+    "nodemon": "^3.1.11",
+    "shx": "0.4.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.53.1",
+    "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "@types/readable-stream": "4.0.23"
+  }
+}
