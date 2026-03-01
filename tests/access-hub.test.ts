@@ -780,7 +780,7 @@ describe("AccessHub", () => {
 
       controller.events.emit("door-2", { data: {}, event: AccessEventType.DEVICE_REMOTE_UNLOCK, event_object_id: "door-2" });
 
-      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining("Side door unlocked"));
+      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining("Side Door unlocked"));
     });
   });
 

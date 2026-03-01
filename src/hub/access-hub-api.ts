@@ -99,8 +99,8 @@ export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isS
   return true;
 }
 
-// Discover main and side door location IDs for UA Gate hubs. This allows us to receive remote_unlock events for each door.
-export function discoverDoorIds(hub: AccessHub): void {
+// Discover main and side door location IDs and names for UA Gate hubs. Has no service dependency and can run early in the boot sequence.
+export function discoverDoorNames(hub: AccessHub): void {
 
   const doors = hub.controller.udaApi.doors ?? [];
 
@@ -159,6 +159,17 @@ export function discoverDoorIds(hub: AccessHub): void {
 
     // Store the side door name for HomeKit service naming.
     hub.sideDoorName = doors.find(d => d.unique_id === hub.sideDoorLocationId)?.name;
+  }
+}
+
+// Initialize door states from the API bootstrap data and propagate names to HomeKit services. Must be called after services are configured.
+export function initializeDoorsFromApi(hub: AccessHub): void {
+
+  const doors = hub.controller.udaApi.doors ?? [];
+
+  if(doors.length === 0) {
+
+    return;
   }
 
   // Initialize door states from the already-loaded doors data.

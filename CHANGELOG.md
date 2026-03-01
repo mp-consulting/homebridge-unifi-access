@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.5 (2026-03-01)
+
+### Features
+
+- 3-phase gate cycle for GarageDoorOpener: the gate duration is now split into three equal phases — Opening, Open, and Closing — giving accurate status in HomeKit. The door position sensor confirms the final Closed state.
+- Post-close cooldown suppresses DPS bounce events after the gate settles, preventing spurious "open" flickers in HomeKit.
+- Startup log messages and HomeKit service logs now use real door names from the Access API (e.g. "Portail locked" instead of "Gate locked").
+
+### Improvements
+
+- Gate cycle duration default changed from 30s to 90s to better match typical motorized gate timing.
+- Updated GateDirectionDuration option description to reflect the 3-phase behavior.
+- Door name discovery now runs early in the boot sequence so all log messages use real names.
+- Added debug logging at all gate cycle decision points for easier troubleshooting.
+
+### Bug Fixes
+
+- Fix GarageDoorOpener showing "Opening/Closed" instead of the full Opening → Open → Closing → Closed progression.
+- Fix side door DPS update events leaking through on UA Gate v1 device update packets.
+
 ## 1.0.4 (2026-03-01)
 
 ### Bug Fixes

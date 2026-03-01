@@ -11,7 +11,7 @@ import { AccessDevice } from "../access-device.js";
 import { AccessReservedNames } from "../access-types.js";
 import { ACCESS_GATE_DIRECTION_DURATION } from "../settings.js";
 import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs } from "./access-hub-types.js";
-import { discoverDoorIds } from "./access-hub-api.js";
+import { discoverDoorNames, initializeDoorsFromApi } from "./access-hub-api.js";
 import { registerEventHandlers } from "./access-hub-events.js";
 import { configureMqtt } from "./access-hub-mqtt.js";
 import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from "./access-hub-services.js";
@@ -59,9 +59,10 @@ export class AccessHub extends AccessDevice {
   // Device configuration - public for module access.
   public readonly catalog: DeviceCatalogEntry;
   public doorbellRingRequestId: string | null;
-  public gateDirection: "opening" | "closing" | null;
+  public gateDirection: "opening" | "open" | "closing" | null;
   public gateDirectionDuration: number;
   public gateDirectionUntil: number;
+  public gatePhaseTimers: ReturnType<typeof setTimeout>[];
   public gateTransitionUntil: number;
   public lockDelayInterval: number | undefined;
   public mainDoorLocationId: string | undefined;
@@ -91,6 +92,7 @@ export class AccessHub extends AccessDevice {
     this.gateDirection = null;
     this.gateDirectionDuration = ((this.getFeatureNumber("Hub.GateDirectionDuration") ?? ACCESS_GATE_DIRECTION_DURATION) * 1000);
     this.gateDirectionUntil = 0;
+    this.gatePhaseTimers = [];
     this.gateTransitionUntil = 0;
     this.lockDelayInterval = this.getFeatureNumber("Hub.LockDelayInterval") ?? undefined;
     this.mainDoorLocationId = undefined;
@@ -162,6 +164,17 @@ export class AccessHub extends AccessDevice {
     return this.setInfo(this.accessory, this.uda);
   }
 
+  // Clear any scheduled gate phase transition timers.
+  public clearGatePhaseTimers(): void {
+
+    for(const timer of this.gatePhaseTimers) {
+
+      clearTimeout(timer);
+    }
+
+    this.gatePhaseTimers = [];
+  }
+
   // Initialize and configure the hub accessory for HomeKit. Orchestrates all module setup.
   private configureDevice(): boolean {
 
@@ -174,11 +187,17 @@ export class AccessHub extends AccessDevice {
     this.accessory.context.mac = this.uda.mac;
     this.accessory.context.controller = this.controller.uda.host.mac;
 
-    logLockDelayInterval(this, "door");
+    // Discover door names for UA Gate hubs early so log messages and services can use real names.
+    if(this.catalog.usesLocationApi) {
+
+      discoverDoorNames(this);
+    }
+
+    logLockDelayInterval(this, this.mainDoorName ?? "door");
 
     if(this.hints.hasSideDoor) {
 
-      logLockDelayInterval(this, "side door");
+      logLockDelayInterval(this, this.sideDoorName ?? "side door");
     }
 
     // Configure accessory information.
@@ -193,10 +212,10 @@ export class AccessHub extends AccessDevice {
     // Configure MQTT services (includes its own event bus subscriptions).
     configureMqtt(this);
 
-    // Discover door IDs for UA Gate hubs (must be done before registering event handlers so door IDs are available).
+    // Initialize door states from API bootstrap data (must be done after services are configured, before event handlers).
     if(this.catalog.usesLocationApi) {
 
-      discoverDoorIds(this);
+      initializeDoorsFromApi(this);
     }
 
     // Register external event handlers (subscribes to controller events).
@@ -221,14 +240,34 @@ export class AccessHub extends AccessDevice {
   // HomeKit DPS state setter. Updates the backing variable, contact sensor, and emits events.
   public set hkDpsState(value: CharacteristicValue) {
 
+    const isClosed = value === this.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+
     // Suppress contradictory DPS events during gate movement (e.g. sensor bounce as the gate moves past).
     if(this.gateDirection && (Date.now() < this.gateDirectionUntil)) {
 
-      const isClosed = value === this.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
-
       if((this.gateDirection === "opening" && isClosed) || (this.gateDirection === "closing" && !isClosed)) {
 
+        this.log.debug("Gate DPS bounce suppressed: %s during %s phase.", isClosed ? "close" : "open", this.gateDirection);
+
         return;
+      }
+    }
+
+    // Detect gate closing: DPS transitions from open to close during the "open" phase (gate closing earlier than the timer predicted) or after the direction window
+    // expires (self-closing with no active cycle). Cancel any pending phase timers and set closing direction to suppress bounce and push transitional state.
+    if(this.catalog.usesLocationApi && isClosed && (this._hkDpsState !== value) && (this.gateDirection === "open" || (Date.now() >= this.gateDirectionUntil))) {
+
+      this.log.debug("Gate closing detected during %s phase — transitioning to Closing.", this.gateDirection ?? "idle");
+      this.clearGatePhaseTimers();
+      this.gateDirection = "closing";
+      this.gateDirectionUntil = Date.now() + (this.gateDirectionDuration / 3);
+
+      const gdoService = this.accessory.getService(this.hap.Service.GarageDoorOpener);
+
+      if(gdoService) {
+
+        gdoService.updateCharacteristic(this.hap.Characteristic.TargetDoorState, this.hap.Characteristic.TargetDoorState.CLOSED);
+        gdoService.updateCharacteristic(this.hap.Characteristic.CurrentDoorState, this.hap.Characteristic.CurrentDoorState.CLOSING);
       }
     }
 

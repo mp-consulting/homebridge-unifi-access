@@ -150,8 +150,8 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
     }
   }
 
-  // Process a side door DPS update event if our state has changed (UA Gate only). DPS state is present in v1 events even when lock events are skipped.
-  if(hub.hints.hasSideDoor && hub.hints.hasWiringDps) {
+  // Process a side door DPS update event if our state has changed (UA Gate only).
+  if(hub.hints.hasSideDoor && hub.hints.hasWiringDps && !hub.catalog.skipsV1LockEvents) {
 
     const newSideDoorDpsState = hubDpsState(hub, true);
 
