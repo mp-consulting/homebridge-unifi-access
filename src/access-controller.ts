@@ -298,7 +298,7 @@ export class AccessController {
 
     // Update the configuration on an existing Access device.
      
-    this.events.emit(AccessEventType.DEVICE_UPDATE, { data: device, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id });
+    this.events.emit(AccessEventType.DEVICE_UPDATE, { data: device, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id, receiver_id: '', save_to_history: false });
 
     return true;
   }
