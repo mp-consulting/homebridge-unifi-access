@@ -3,6 +3,7 @@
  * access-hub-api.ts: Hub API commands and door discovery for the UniFi Access hub.
  */
 import { UGT_SIDE_DOOR_TARGET_NAME } from "../access-device-catalog.js";
+import { AccessReservedNames } from "../access-types.js";
 import { AUTO_LOCK_DELAY_MS } from "./access-hub-types.js";
 import type { AccessHub } from "./access-hub.js";
 import { toDpsState, toLockState } from "./access-hub-utils.js";
@@ -60,11 +61,12 @@ export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isS
     // When unlocking from HomeKit, the controller doesn't send the events to the events API. Manually update the state and schedule the auto-lock.
     if(!isLocking) {
 
-      hub.hkLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
-
       if(isSideDoor) {
 
         hub.hkSideDoorLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
+      } else {
+
+        hub.hkLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
       }
 
       setTimeout(() => {
@@ -202,6 +204,10 @@ export function initializeDoorState(hub: AccessHub, doorData: { door_position_st
 
     hub._hkSideDoorDpsState = newDpsState;
     hub._hkSideDoorLockState = newLockState;
+
+    // Update the side door contact sensor service directly since it was already created before door discovery.
+    hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
+      ?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, newDpsState);
   } else {
 
     hub._hkDpsState = newDpsState;

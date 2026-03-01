@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3 (2026-03-01)
+
+### Bug Fixes
+
+- Fix side door unlock incorrectly updating the main door lock state in HomeKit for UA Gate hubs.
+- Fix side door DPS contact sensor showing stale state after bootstrap initialization.
+
 ## 1.0.2 (2026-03-01)
 
 ### Features
