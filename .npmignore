@@ -136,4 +136,4 @@ web_modules/
 .yarn/build-state.yml
 .pnp.*
 
-tests/
+test/
