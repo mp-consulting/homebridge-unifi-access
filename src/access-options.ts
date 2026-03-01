@@ -72,7 +72,7 @@ export const featureOptions: Record<string, AccessFeatureOption[]> = {
   "Device": [
 
     { default: true, description: "Make this device available in HomeKit.", name: "" },
-    { default: false, description: "Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit.", name: "SyncName" }
+    { default: true, description: "Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit.", name: "SyncName" }
   ],
 
   // Hub options.

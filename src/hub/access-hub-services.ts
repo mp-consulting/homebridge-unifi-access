@@ -5,7 +5,7 @@
 import type { CharacteristicValue } from "homebridge";
 import type { SensorInput } from "../access-device-catalog.js";
 import { AccessReservedNames } from "../access-types.js";
-import { acquireService, validService } from "homebridge-plugin-utils";
+import { acquireService, sanitizeName, validService } from "homebridge-plugin-utils";
 import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey, type HubEventMap, terminalInputs } from "./access-hub-types.js";
 import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from "../settings.js";
 import type { AccessHub } from "./access-hub.js";
@@ -56,6 +56,17 @@ export function registerServiceReactions(hub: AccessHub): void {
 
           hub.gateDirection = isClosed(hub, hub._hkDpsState) ? "opening" : "closing";
           hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
+
+          // Push transitional state (Opening/Closing) to HomeKit.
+          const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
+
+          if(gdoService) {
+
+            gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState,
+              hub.gateDirection === "opening" ? hub.hap.Characteristic.TargetDoorState.OPEN : hub.hap.Characteristic.TargetDoorState.CLOSED);
+            gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState,
+              hub.gateDirection === "opening" ? hub.hap.Characteristic.CurrentDoorState.OPENING : hub.hap.Characteristic.CurrentDoorState.CLOSING);
+          }
         }
 
         hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On, !isLocked(hub, data.value));
@@ -107,7 +118,7 @@ export function registerServiceReactions(hub: AccessHub): void {
     }
   });
 
-  // React to DPS state changes by updating the GarageDoorOpener (UA Gate only).
+  // React to DPS state changes by updating the GarageDoorOpener or side door contact sensor.
   hub.hubEvents.on("dps:changed", (data: HubEventMap["dps:changed"]) => {
 
     // Log DPS state changes.
@@ -116,15 +127,22 @@ export function registerServiceReactions(hub: AccessHub): void {
       hub.log.info("%s position sensor %s.", data.isSideDoor ? "Side door" : "Door", isClosed(hub, data.value) ? "closed" : "open");
     }
 
+    // Side door DPS: update the side door contact sensor and return — the GarageDoorOpener only reflects main door state.
+    if(data.isSideDoor) {
+
+      hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
+        ?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, data.value);
+
+      return;
+    }
+
     if(doorServiceType(hub) !== "GarageDoorOpener" || !hub.catalog.usesLocationApi) {
 
       return;
     }
 
     // Check transition cooldown to let the gate stabilize during movement.
-    const transitionUntil = data.isSideDoor ? hub.sideDoorGateTransitionUntil : hub.gateTransitionUntil;
-
-    if(Date.now() < transitionUntil) {
+    if(Date.now() < hub.gateTransitionUntil) {
 
       return;
     }
@@ -508,6 +526,13 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
 
     if(isUaGate) {
 
+      // Return transitional state while the gate is actively moving.
+      if(!isSideDoor && hub.gateDirection && (Date.now() < hub.gateDirectionUntil)) {
+
+        return hub.gateDirection === "opening" ? hub.hap.Characteristic.CurrentDoorState.OPENING :
+          hub.hap.Characteristic.CurrentDoorState.CLOSING;
+      }
+
       const dpsState = isSideDoor ? hub._hkSideDoorDpsState : hub.hkDpsState;
 
       return dpsState === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ? hub.hap.Characteristic.CurrentDoorState.CLOSED :
@@ -685,6 +710,45 @@ function configureTamperDetection(hub: AccessHub, service: ReturnType<typeof acq
 
     service.updateCharacteristic(hub.hap.Characteristic.StatusTampered, (tamperedEntry === "true") ? hub.hap.Characteristic.StatusTampered.TAMPERED :
       hub.hap.Characteristic.StatusTampered.NOT_TAMPERED);
+  }
+}
+
+// Update side door service names to use the discovered side door name instead of the generic "Side Door" suffix.
+export function updateSideDoorServiceNames(hub: AccessHub): void {
+
+  if(!hub.hints.syncName || !hub.sideDoorName) {
+
+    return;
+  }
+
+  const name = sanitizeName(hub.sideDoorName);
+
+  const sideDoorServices: { subtype: AccessReservedNames; suffix: string }[] = [
+    { subtype: AccessReservedNames.LOCK_DOOR_SIDE, suffix: "" },
+    { subtype: AccessReservedNames.CONTACT_DPS_SIDE, suffix: " Door Position Sensor" },
+    { subtype: AccessReservedNames.SWITCH_LOCK_DOOR_SIDE_TRIGGER, suffix: " Lock Trigger" }
+  ];
+
+  for(const { subtype, suffix } of sideDoorServices) {
+
+    const serviceType = subtype === AccessReservedNames.LOCK_DOOR_SIDE ? hub.hap.Service.LockMechanism :
+      subtype === AccessReservedNames.CONTACT_DPS_SIDE ? hub.hap.Service.ContactSensor : hub.hap.Service.Switch;
+    const service = hub.accessory.getServiceById(serviceType, subtype);
+
+    if(!service) {
+
+      continue;
+    }
+
+    const serviceName = name + suffix;
+
+    service.displayName = serviceName;
+    service.updateCharacteristic(hub.hap.Characteristic.Name, serviceName);
+
+    if(service.testCharacteristic(hub.hap.Characteristic.ConfiguredName)) {
+
+      service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, serviceName);
+    }
   }
 }
 

@@ -14,7 +14,7 @@ import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type
 import { discoverDoorIds } from "./access-hub-api.js";
 import { registerEventHandlers } from "./access-hub-events.js";
 import { configureMqtt } from "./access-hub-mqtt.js";
-import { configureServices, registerServiceReactions } from "./access-hub-services.js";
+import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from "./access-hub-services.js";
 import {
   checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, setContactSensorState
 } from "./access-hub-utils.js";
@@ -65,7 +65,9 @@ export class AccessHub extends AccessDevice {
   public gateTransitionUntil: number;
   public lockDelayInterval: number | undefined;
   public mainDoorLocationId: string | undefined;
+  public mainDoorName: string | undefined;
   public sideDoorLocationId: string | undefined;
+  public sideDoorName: string | undefined;
   public sideDoorGateTransitionUntil: number;
   public uda: AccessDeviceConfig;
 
@@ -92,7 +94,9 @@ export class AccessHub extends AccessDevice {
     this.gateTransitionUntil = 0;
     this.lockDelayInterval = this.getFeatureNumber("Hub.LockDelayInterval") ?? undefined;
     this.mainDoorLocationId = undefined;
+    this.mainDoorName = undefined;
     this.sideDoorLocationId = undefined;
+    this.sideDoorName = undefined;
     this.sideDoorGateTransitionUntil = 0;
     this.doorbellRingRequestId = null;
 
@@ -132,6 +136,24 @@ export class AccessHub extends AccessDevice {
     }
 
     return true;
+  }
+
+  // Configure the device information details for HomeKit. Overrides the base class to prefer the door name over the device alias for UA Gate hubs.
+  public configureInfo(): boolean {
+
+    if(this.hints.syncName) {
+
+      const name = this.mainDoorName ?? this.uda.alias;
+
+      if(name) {
+
+        this.accessoryName = name;
+      }
+    }
+
+    updateSideDoorServiceNames(this);
+
+    return this.setInfo(this.accessory, this.uda);
   }
 
   // Initialize and configure the hub accessory for HomeKit. Orchestrates all module setup.

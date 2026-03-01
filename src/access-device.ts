@@ -148,9 +148,9 @@ export abstract class AccessDevice extends AccessBase {
     }
 
     // Inform the user if we've opted for something other than the defaults.
-    if(this.hints.syncName) {
+    if(!this.hints.syncName) {
 
-      this.log.info("Syncing Access device name to HomeKit.");
+      this.log.info("Device name synchronization with HomeKit is disabled.");
     }
 
     if(this.hints.motionDuration !== ACCESS_MOTION_DURATION) {
@@ -507,6 +507,7 @@ export abstract class AccessDevice extends AccessBase {
   public set accessoryName(name: string) {
 
     const cleanedName = sanitizeName(name);
+    const oldName = this.accessoryName;
 
     // Set all the internally managed names within Homebridge to the new accessory name.
     this.accessory.displayName = cleanedName;
@@ -514,5 +515,28 @@ export abstract class AccessDevice extends AccessBase {
 
     // Set all the HomeKit-visible names.
     this.accessory.getService(this.hap.Service.AccessoryInformation)?.updateCharacteristic(this.hap.Characteristic.Name, cleanedName);
+
+    // Propagate the new name to all services on the accessory.
+    for(const service of this.accessory.services) {
+
+      if(service.UUID === this.hap.Service.AccessoryInformation.UUID) {
+
+        continue;
+      }
+
+      // Derive the new service name by replacing the old accessory name prefix.
+      if(oldName.length && service.displayName.startsWith(oldName)) {
+
+        const newServiceName = cleanedName + service.displayName.slice(oldName.length);
+
+        service.displayName = newServiceName;
+        service.updateCharacteristic(this.hap.Characteristic.Name, newServiceName);
+
+        if(service.testCharacteristic(this.hap.Characteristic.ConfiguredName)) {
+
+          service.updateCharacteristic(this.hap.Characteristic.ConfiguredName, newServiceName);
+        }
+      }
+    }
   }
 }

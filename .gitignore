@@ -19,6 +19,9 @@ homebridge-ui/api/
 coverage/
 *.lcov
 
+# Debug dumps
+tmp/
+
 # Logs
 *.log
 

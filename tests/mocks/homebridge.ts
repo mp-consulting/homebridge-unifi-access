@@ -97,6 +97,7 @@ export function createMockService(serviceType: string, subtype?: string) {
   const characteristics = new Map<string, ReturnType<typeof createMockCharacteristic>>();
 
   const service = {
+    UUID: serviceType,
     addOptionalCharacteristic: vi.fn(),
     displayName: "",
     getCharacteristic: vi.fn((charType: string) => {

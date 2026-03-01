@@ -60,7 +60,7 @@ These option(s) apply to: all Access device types.
 | Option                                                                              | Description
 |-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------
 | <A NAME="Device"></A>`Device`                                                       | Make this device available in HomeKit. **(default: enabled)**.
-| <A NAME="Device.SyncName"></A>`Device.SyncName`                                     | Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit. **(default: disabled)**.
+| <A NAME="Device.SyncName"></A>`Device.SyncName`                                     | Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit. **(default: enabled)**.
 
 #### <A NAME="controller"></A>Controller feature options.
 

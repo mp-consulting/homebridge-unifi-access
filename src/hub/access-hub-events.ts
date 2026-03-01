@@ -11,7 +11,7 @@ import {
 } from "./access-hub-types.js";
 import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from "../access-device-catalog.js";
 import type { AccessHub, HkStateKey } from "./access-hub.js";
-import { configureTerminalInputs } from "./access-hub-services.js";
+import { configureTerminalInputs, updateSideDoorServiceNames } from "./access-hub-services.js";
 import {
   checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, toDpsState, toLockState
 } from "./access-hub-utils.js";
@@ -284,9 +284,23 @@ function handleLocationUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   if(isMainDoor) {
 
     updateDoorFromLocationState(hub, locationData.state, false);
+
+    // Sync door name changes to HomeKit.
+    if(locationData.name && (hub.mainDoorName !== locationData.name)) {
+
+      hub.mainDoorName = locationData.name;
+      hub.configureInfo();
+    }
   } else if(isSideDoor && hub.hints.hasSideDoor) {
 
     updateDoorFromLocationState(hub, locationData.state, true);
+
+    // Sync door name changes to HomeKit.
+    if(locationData.name && (hub.sideDoorName !== locationData.name)) {
+
+      hub.sideDoorName = locationData.name;
+      updateSideDoorServiceNames(hub);
+    }
   }
 }
 

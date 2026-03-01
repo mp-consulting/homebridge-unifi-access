@@ -600,6 +600,57 @@ describe("AccessHub", () => {
     });
   });
 
+  describe("configureInfo", () => {
+
+    it("should prefer mainDoorName over device alias for UGT hubs", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Portail", unique_id: "door-1" }, { name: "Portillon", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.mainDoorName).toBe("Portail");
+      expect(hub.accessoryName).toBe("Portail");
+    });
+
+    it("should fall back to device alias when mainDoorName is undefined", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.mainDoorName).toBeUndefined();
+      expect(hub.accessoryName).toBe("Test Gate");
+    });
+
+    it("should store sideDoorName during discovery", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Main Gate", unique_id: "door-1" }, { name: "Portillon", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.sideDoorName).toBe("Portillon");
+    });
+
+    it("should update side door service names when sideDoorName is discovered", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Main Gate", unique_id: "door-1" }, { name: "Portillon", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      const sideDoorLock = accessory._services.get("LockMechanism." + AccessReservedNames.LOCK_DOOR_SIDE);
+
+      expect(sideDoorLock?.displayName).toBe("Portillon");
+    });
+  });
+
   describe("event handling — remote unlock", () => {
 
     it("should publish MQTT unlock for non-UGT device", () => {
@@ -1163,6 +1214,49 @@ describe("AccessHub", () => {
       expect(mqtt.publish).not.toHaveBeenCalledWith(expect.any(String), "lock", expect.any(String));
     });
 
+    it("should sync main door name change from location update", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Main Gate", unique_id: "door-1" }, { name: "Side Door", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.mainDoorName).toBe("Main Gate");
+
+      controller.events.emit(device.unique_id, {
+        data: { id: "door-1", name: "Portail", state: { dps: "close", lock: "locked" } },
+        event: AccessEventType.LOCATION_UPDATE,
+        event_object_id: device.unique_id
+      });
+
+      expect(hub.mainDoorName).toBe("Portail");
+      expect(hub.accessoryName).toBe("Portail");
+    });
+
+    it("should sync side door name change from location update", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Main Gate", unique_id: "door-1" }, { name: "Side Door", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.sideDoorName).toBe("Side Door");
+
+      controller.events.emit(device.unique_id, {
+        data: { id: "door-2", name: "Portillon", state: { dps: "close", lock: "locked" } },
+        event: AccessEventType.LOCATION_UPDATE,
+        event_object_id: device.unique_id
+      });
+
+      expect(hub.sideDoorName).toBe("Portillon");
+
+      const sideDoorLock = accessory._services.get("LockMechanism." + AccessReservedNames.LOCK_DOOR_SIDE);
+
+      expect(sideDoorLock?.displayName).toBe("Portillon");
+    });
+
     it("should update side door from location data for UGT", () => {
 
       const device = createUGTConfig();
@@ -1208,6 +1302,18 @@ describe("AccessHub", () => {
       new AccessHub(controller as any, device, accessory as any);
 
       expect(controller.events.listenerCount("door-2")).toBeGreaterThan(0);
+    });
+
+    it("should store door names during discovery", () => {
+
+      const device = createUGTConfig();
+
+      controller.udaApi.doors = [{ name: "Portail", unique_id: "door-1" }, { name: "Portillon", unique_id: "door-2" }];
+
+      const hub = new AccessHub(controller as any, device, accessory as any);
+
+      expect(hub.mainDoorName).toBe("Portail");
+      expect(hub.sideDoorName).toBe("Portillon");
     });
 
     it("should warn when no doors are found", () => {

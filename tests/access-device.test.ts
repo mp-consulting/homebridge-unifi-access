@@ -4,7 +4,7 @@ import type { AccessDeviceConfig } from "unifi-access";
 import { AccessReservedNames } from "../src/access-types.js";
 import { ACCESS_MOTION_DURATION, ACCESS_OCCUPANCY_DURATION } from "../src/settings.js";
 import { createMockController } from "./mocks/controller.js";
-import { createMockAccessory } from "./mocks/homebridge.js";
+import { createMockAccessory, createMockService } from "./mocks/homebridge.js";
 import { createMockDeviceConfig, createMockEnterprise } from "./mocks/unifi-access.js";
 
 // Concrete test subclass since AccessDevice is abstract.
@@ -268,6 +268,66 @@ describe("AccessDevice", () => {
 
       expect(infoService.updateCharacteristic).toHaveBeenCalledWith(controller.hap.Characteristic.Name, "Updated Name");
     });
+
+    it("should propagate name changes to all services on the accessory", () => {
+
+      // Set the initial accessory name via the alias fallback.
+      device.uda = createMockDeviceConfig({ alias: "Old Name" });
+
+      // Create mock services with old name prefix.
+      const contactService = createMockService("ContactSensor", "ContactSensor.DPS");
+
+      contactService.displayName = "Old Name Door Position Sensor";
+
+      const lockService = createMockService("LockMechanism");
+
+      lockService.displayName = "Old Name";
+
+      // Include the AccessoryInformation service and our test services.
+      accessory.services = [accessory.getService(controller.hap.Service.AccessoryInformation), contactService, lockService];
+
+      // Set the new name.
+      device.accessoryName = "New Name";
+
+      // Verify both services got renamed.
+      expect(contactService.displayName).toBe("New Name Door Position Sensor");
+      expect(contactService.updateCharacteristic).toHaveBeenCalledWith(controller.hap.Characteristic.Name, "New Name Door Position Sensor");
+      expect(lockService.displayName).toBe("New Name");
+      expect(lockService.updateCharacteristic).toHaveBeenCalledWith(controller.hap.Characteristic.Name, "New Name");
+    });
+
+    it("should update ConfiguredName when the service has it", () => {
+
+      device.uda = createMockDeviceConfig({ alias: "Old Name" });
+
+      const switchService = createMockService("Switch", "LockTrigger");
+
+      switchService.displayName = "Old Name Lock Trigger";
+      switchService.testCharacteristic.mockReturnValue(true);
+
+      accessory.services = [accessory.getService(controller.hap.Service.AccessoryInformation), switchService];
+
+      device.accessoryName = "New Name";
+
+      expect(switchService.updateCharacteristic).toHaveBeenCalledWith(controller.hap.Characteristic.ConfiguredName, "New Name Lock Trigger");
+    });
+
+    it("should not update services whose displayName does not start with the old name", () => {
+
+      device.uda = createMockDeviceConfig({ alias: "Old Name" });
+
+      const unrelatedService = createMockService("Switch", "some-subtype");
+
+      unrelatedService.displayName = "Unrelated Service";
+
+      accessory.services = [accessory.getService(controller.hap.Service.AccessoryInformation), unrelatedService];
+
+      device.accessoryName = "New Name";
+
+      expect(unrelatedService.displayName).toBe("Unrelated Service");
+      expect(unrelatedService.updateCharacteristic).not.toHaveBeenCalledWith(controller.hap.Characteristic.Name, expect.anything());
+    });
+
   });
 
   describe("cleanup", () => {
@@ -487,13 +547,13 @@ describe("AccessDevice", () => {
       expect(device.hints.syncName).toBe(true);
     });
 
-    it("should log when syncName is enabled", () => {
+    it("should log when syncName is disabled", () => {
 
-      controller.hasFeature.mockReturnValue(true);
+      controller.hasFeature.mockReturnValue(false);
 
       device.testConfigureHints();
 
-      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining("Syncing Access device name to HomeKit."));
+      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining("Device name synchronization with HomeKit is disabled."));
     });
 
     it("should log when motion duration differs from default", () => {

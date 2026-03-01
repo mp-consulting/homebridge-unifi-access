@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.2 (2026-03-01)
+
+### Features
+
+- Name synchronization with HomeKit is now enabled by default (`Device.SyncName`).
+- UA Gate hubs now use per-door names from the Access API (e.g. "Portail", "Portillon") for HomeKit service naming instead of the generic device alias. Names stay in sync when renamed in the Access controller.
+- Gate direction tracking: GarageDoorOpener now shows transitional states (Opening/Closing) during gate movement for external triggers (NFC, remote, physical button).
+- Event schema monitor supports `--dump` flag to save raw event payloads to disk for debugging.
+
+### Improvements
+
+- Accessory name changes now propagate to all HomeKit services, updating displayName, Name, and ConfiguredName characteristics.
+- Side door DPS events now properly update the side door contact sensor in HomeKit.
+
 ## 1.0.1 (2026-03-01)
 
 ### Features

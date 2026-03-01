@@ -45,6 +45,7 @@ This plugin discovers all your supported UniFi Access devices and makes them ava
 
 - **Easy configuration** - provide your controller IP address, username, and password to get started
 - **Full HomeKit support** - locks, doorbells, door position sensors, terminal inputs, access method switches, and automation accelerators
+- **Automatic name sync** - device and door names from UniFi Access are automatically reflected in HomeKit, including per-door names for multi-door hubs like the UA Gate
 - **Multiple controllers** - seamlessly integrate several UniFi Access controllers into HomeKit
 - **Realtime device detection** - automatically adds and removes devices in HomeKit as they change on your controller, without restarting Homebridge
 - **Customizable** - [feature options](docs/FeatureOptions.md) let you show/hide specific devices and tailor behavior via the built-in webUI
@@ -142,6 +143,9 @@ npm run monitor:events -- --config /path/to/config.json
 
 # Or specify credentials directly
 npm run monitor:events -- --address 192.168.1.1 --username admin --password secret
+
+# Save raw event payloads to tmp/events/ for debugging
+npm run monitor:events -- --dump
 ```
 
 Sample output:

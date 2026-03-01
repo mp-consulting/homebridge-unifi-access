@@ -126,6 +126,9 @@ export function discoverDoorIds(hub: AccessHub): void {
     hub.mainDoorLocationId = mainDoor?.unique_id ?? doors[0].unique_id;
   }
 
+  // Store the main door name for HomeKit service naming.
+  hub.mainDoorName = doors.find(d => d.unique_id === hub.mainDoorLocationId)?.name;
+
   // Find the side door (if enabled).
   if(hub.hints.hasSideDoor) {
 
@@ -151,10 +154,16 @@ export function discoverDoorIds(hub: AccessHub): void {
         hub.sideDoorLocationId = otherDoor?.unique_id;
       }
     }
+
+    // Store the side door name for HomeKit service naming.
+    hub.sideDoorName = doors.find(d => d.unique_id === hub.sideDoorLocationId)?.name;
   }
 
   // Initialize door states from the already-loaded doors data.
   initializeDoorsFromBootstrap(hub, doors);
+
+  // Propagate discovered door names to HomeKit services.
+  hub.configureInfo();
 }
 
 // Initialize door states from the doors data loaded during API bootstrap. This avoids making additional API calls which may fail.

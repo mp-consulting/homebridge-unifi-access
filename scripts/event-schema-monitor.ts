@@ -11,10 +11,11 @@
  *   npx tsx scripts/event-schema-monitor.ts                                       # reads from tests/hbConfig/config.json
  *   npx tsx scripts/event-schema-monitor.ts --config /path/to/config.json         # reads from a custom config file
  *   npx tsx scripts/event-schema-monitor.ts --address <ip> --username <u> --password <p>  # explicit credentials
+ *   npx tsx scripts/event-schema-monitor.ts --dump                                # save raw event payloads to tmp/events/
  */
 import { AccessApi } from "unifi-access";
 import type { AccessEventPacket } from "unifi-access";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
@@ -50,7 +51,7 @@ function loadFromConfig(configPath: string): { address: string; username: string
 
 // ---- CLI ----
 
-function parseCliArgs(): { address: string; username: string; password: string } {
+function parseCliArgs(): { address: string; dump: boolean; username: string; password: string } {
 
   const { values } = parseArgs({
 
@@ -58,6 +59,7 @@ function parseCliArgs(): { address: string; username: string; password: string }
 
       address:  { short: "a", type: "string" },
       config:   { short: "c", type: "string" },
+      dump:     { short: "d", type: "boolean", default: false },
       password: { short: "p", type: "string" },
       username: { short: "u", type: "string" }
     },
@@ -90,7 +92,7 @@ function parseCliArgs(): { address: string; username: string; password: string }
     console.log(colors.dim(`Loaded credentials from ${configPath}`));
   }
 
-  return { address, password, username };
+  return { address, dump: !!values.dump, password, username };
 }
 
 // Color helpers for terminal output.
@@ -104,6 +106,9 @@ const colors = {
   red: (s: string) => `\x1b[31m${s}\x1b[0m`,
   yellow: (s: string) => `\x1b[33m${s}\x1b[0m`
 };
+
+// Event dump directory (set when --dump is enabled).
+let dumpDir = "";
 
 // Track event statistics.
 const stats = {
@@ -180,6 +185,14 @@ function processEvent(packet: AccessEventPacket): void {
 
   const timestamp = new Date().toISOString();
   const eventType = packet.event;
+
+  // Dump the raw payload to disk when --dump is enabled.
+  if(dumpDir) {
+
+    const filename = `${timestamp.replace(/[:.]/g, "-")}_${eventType}.json`;
+
+    writeFileSync(join(dumpDir, filename), JSON.stringify(packet, null, 2) + "\n");
+  }
 
   // Validate the envelope.
   const envelopeIssues = validateSchema(packet as unknown as Record<string, unknown>, packetEnvelopeSchema, "packet.");
@@ -289,7 +302,15 @@ function printSummary(): void {
 // Main entry point.
 async function main(): Promise<void> {
 
-  const { address, username, password } = parseCliArgs();
+  const { address, dump, username, password } = parseCliArgs();
+
+  // Set up the event dump directory when --dump is enabled.
+  if(dump) {
+
+    dumpDir = join(import.meta.dirname ?? ".", "..", "tmp", "events");
+    mkdirSync(dumpDir, { recursive: true });
+    console.log(colors.dim(`Event payloads will be saved to ${dumpDir}`));
+  }
 
   const log = {
 
