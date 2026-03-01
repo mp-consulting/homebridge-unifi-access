@@ -21,6 +21,9 @@ export const ACCESS_CONTROLLER_RETRY_INTERVAL = 10;
 // Default delay, in seconds, before removing Access devices that no longer exist.
 export const ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL = 60;
 
+// Default duration, in seconds, for the gate direction indicator that suppresses DPS sensor bounce during gate movement.
+export const ACCESS_GATE_DIRECTION_DURATION = 30;
+
 // Default delay, in minutes, before locking an unlocked door relay.
 export const ACCESS_DEVICE_UNLOCK_INTERVAL = 0;
 

@@ -34,6 +34,7 @@ export interface AccessEventDeviceUpdateV2 {
   // Location states for UA Gate hubs which contain the lock state per door.
   location_states?: {
 
+    alarms?: unknown[];
     dps: "open" | "close";
     dps_connected: boolean;
     emergency?: Record<string, unknown>;
@@ -109,7 +110,7 @@ export interface AccessEventLocationDataUpdate {
   level?: number;
   location_type?: string;
   name: string;
-  previous_name?: string;
+  previous_name?: string | string[];
   timezone?: string;
   unique_id: string;
   up_id?: string;

@@ -90,6 +90,7 @@ export const deviceUpdateV2AccessMethodSchema: SchemaDefinition = {
 // access.data.v2.device.update — location_states[] element.
 export const locationStateElementSchema: SchemaDefinition = {
 
+  "alarms":                             { required: false, type: "array" },
   "dps":                                { required: true,  type: "string" },
   "dps_connected":                      { required: true,  type: "boolean" },
   "emergency":                          { required: false, type: "object" },
@@ -110,7 +111,7 @@ export const locationDataUpdateSchema: SchemaDefinition = {
   "level":                    { required: false, type: "number" },
   "location_type":            { required: false, type: "string" },
   "name":                     { required: true,  type: "string" },
-  "previous_name":            { required: false, type: "string" },
+  "previous_name":            { required: false, type: "string|array" },
   "timezone":                 { required: false, type: "string" },
   "unique_id":                { required: true,  type: "string" },
   "up_id":                    { required: false, type: "string" },
@@ -146,8 +147,8 @@ export const baseInfoSchema: SchemaDefinition = {
 // access.data.top_log.update (log/analytics summary).
 export const topLogUpdateSchema: SchemaDefinition = {
 
-  "buckets":                  { required: true,  type: "object" },
-  "hits":                     { required: true,  type: "object" }
+  "buckets":                  { required: false, type: "object" },
+  "hits":                     { required: true,  type: "object|array" }
 };
 
 // access.logs.add (activity log entry).
@@ -247,7 +248,7 @@ export function validateSchema(data: Record<string, unknown>, schema: SchemaDefi
 
     const actual = effectiveType(value);
 
-    if(actual !== spec.type) {
+    if(!spec.type.split("|").includes(actual)) {
 
       issues.push({ detail: `Expected ${spec.type}, got ${actual}`, field: prefix + field, issue: "type_mismatch" });
     }

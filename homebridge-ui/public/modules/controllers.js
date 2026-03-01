@@ -1,4 +1,4 @@
-import { $, escapeHtml, setButtonLoading, showScreen } from "./dom-helpers.js";
+import { $, el, escapeHtml, setButtonLoading, showScreen } from "./dom-helpers.js";
 import { getControllers, saveConfig, state } from "./state.js";
 import { openFeatureOptions } from "./feature-options.js";
 
@@ -64,24 +64,22 @@ export const renderControllers = () => {
     // Check controller status asynchronously.
     const badge = li.querySelector(".status-badge");
 
+    const updateBadge = (colorClass, icon, label) => {
+
+
+      badge.className = "status-badge badge rounded-pill bg-" + colorClass + " ms-2";
+      badge.style.fontSize = "0.65rem";
+      badge.textContent = "";
+      badge.appendChild(el("i", { className: "fas fa-" + icon }));
+      badge.appendChild(document.createTextNode(" " + label));
+    };
+
     homebridge.request("/checkStatus", { address: ctrl.address }).then((result) => {
 
-      if(result?.online) {
-
-        badge.className = "status-badge badge rounded-pill bg-success ms-2";
-        badge.style.fontSize = "0.65rem";
-        badge.innerHTML = "<i class=\"fas fa-check-circle\"></i> Online";
-      } else {
-
-        badge.className = "status-badge badge rounded-pill bg-danger ms-2";
-        badge.style.fontSize = "0.65rem";
-        badge.innerHTML = "<i class=\"fas fa-times-circle\"></i> Offline";
-      }
+      updateBadge(result?.online ? "success" : "danger", result?.online ? "check-circle" : "times-circle", result?.online ? "Online" : "Offline");
     }).catch(() => {
 
-      badge.className = "status-badge badge rounded-pill bg-warning ms-2";
-      badge.style.fontSize = "0.65rem";
-      badge.innerHTML = "<i class=\"fas fa-question-circle\"></i> Unknown";
+      updateBadge("warning", "question-circle", "Unknown");
     });
   });
 };

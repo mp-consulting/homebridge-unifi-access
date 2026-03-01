@@ -1,6 +1,31 @@
 /* @mp-consulting/homebridge-unifi-access Custom UI Styles */
 
 /* ============================================================================
+   THEME CUSTOM PROPERTIES
+   ============================================================================ */
+
+:root {
+  --muted-color: #6c757d;
+  --card-bg: transparent;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --card-header-bg: transparent;
+  --card-header-border: inherit;
+  --card-header-hover-bg: rgba(0, 0, 0, 0.02);
+  --list-item-border: inherit;
+  --progress-bg: rgba(0, 0, 0, 0.06);
+  --scope-device-bg: rgba(13, 202, 240, 0.04);
+  --scope-controller-bg: rgba(25, 135, 84, 0.04);
+  --scope-global-bg: rgba(255, 193, 7, 0.04);
+  --grouped-bar: rgba(0, 0, 0, 0.06);
+  --default-on-bg: rgba(25, 135, 84, 0.1);
+  --default-off-bg: rgba(108, 117, 125, 0.1);
+  --scope-hint-color: #6c757d;
+  --connector-line: #dee2e6;
+  --connector-active: #495057;
+}
+
+/* ============================================================================
    SCREENS
    ============================================================================ */
 
@@ -35,17 +60,20 @@
 
 .card {
   border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background-color: var(--card-bg);
+  box-shadow: var(--card-shadow);
   transition: box-shadow 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--card-hover-shadow);
 }
 
 .card-header {
   font-weight: 600;
   font-size: 0.95rem;
+  background-color: var(--card-header-bg) !important;
+  border-bottom-color: var(--card-header-border) !important;
 }
 
 /* ============================================================================
@@ -147,7 +175,7 @@
 
 .scope-hint {
   font-size: 0.65rem;
-  color: #6c757d;
+  color: var(--scope-hint-color);
   line-height: 1.2;
 }
 
@@ -161,12 +189,12 @@
 .scope-connector-line {
   width: 2px;
   height: 100%;
-  background: #dee2e6;
+  background: var(--connector-line);
   transition: background 0.3s ease;
 }
 
 .scope-connector.active .scope-connector-line {
-  background: #495057;
+  background: var(--connector-active);
 }
 
 /* ============================================================================
@@ -178,7 +206,7 @@
 }
 
 #optionsContainer .card-header:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: var(--card-header-hover-bg) !important;
 }
 
 #optionsContainer .form-check-input {
@@ -218,7 +246,7 @@
 /* Category progress bar */
 .category-progress {
   height: 4px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--progress-bg);
   border-radius: 2px;
   overflow: hidden;
   min-width: 40px;
@@ -259,17 +287,17 @@
 
 .option-item.scope-device {
   border-left-color: #0dcaf0 !important;
-  background-color: rgba(13, 202, 240, 0.04);
+  background-color: var(--scope-device-bg);
 }
 
 .option-item.scope-controller {
   border-left-color: #198754 !important;
-  background-color: rgba(25, 135, 84, 0.04);
+  background-color: var(--scope-controller-bg);
 }
 
 .option-item.scope-global {
   border-left-color: #ffc107 !important;
-  background-color: rgba(255, 193, 7, 0.04);
+  background-color: var(--scope-global-bg);
 }
 
 /* Non-default indicator */
@@ -288,12 +316,12 @@
 }
 
 .default-on {
-  background-color: rgba(25, 135, 84, 0.1);
+  background-color: var(--default-on-bg);
   color: #198754;
 }
 
 .default-off {
-  background-color: rgba(108, 117, 125, 0.1);
+  background-color: var(--default-off-bg);
   color: #6c757d;
 }
 
@@ -309,7 +337,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--grouped-bar);
 }
 
 /* Option name styling */
@@ -322,6 +350,26 @@
   font-size: 0.8rem;
   line-height: 1.4;
   opacity: 0.75;
+}
+
+/* Numeric value input for configurable options */
+.option-value {
+  max-width: 300px;
+}
+
+.option-value-input {
+  max-width: 80px;
+  text-align: center;
+}
+
+.option-value-unit {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.option-value-default {
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
 /* Reset button */
@@ -347,6 +395,7 @@
 .list-group-item {
   transition: background-color 0.15s ease;
   position: relative;
+  border-color: var(--list-item-border);
 }
 
 .list-group-item i {
@@ -375,72 +424,52 @@
    ============================================================================ */
 
 @media (prefers-color-scheme: dark) {
+  :root {
+    --muted-color: #a0a0a0;
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --card-header-bg: rgba(255, 255, 255, 0.05);
+    --card-header-border: rgba(255, 255, 255, 0.1);
+    --card-header-hover-bg: rgba(255, 255, 255, 0.08);
+    --list-item-border: rgba(255, 255, 255, 0.08);
+    --progress-bg: rgba(255, 255, 255, 0.08);
+    --scope-device-bg: rgba(13, 202, 240, 0.08);
+    --scope-controller-bg: rgba(25, 135, 84, 0.08);
+    --scope-global-bg: rgba(255, 193, 7, 0.08);
+    --grouped-bar: rgba(255, 255, 255, 0.1);
+    --default-on-bg: rgba(25, 135, 84, 0.2);
+    --default-off-bg: rgba(108, 117, 125, 0.2);
+    --scope-hint-color: #a0a0a0;
+    --connector-line: rgba(255, 255, 255, 0.1);
+    --connector-active: rgba(255, 255, 255, 0.3);
+  }
+
   .text-muted {
     color: #a0a0a0 !important;
   }
+}
 
-  .card {
-    background-color: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
-  .card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-
-  .card-header {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-  }
-
-  #optionsContainer .card-header:hover {
-    background-color: rgba(255, 255, 255, 0.08) !important;
-  }
-
-  .list-group-item {
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .category-progress {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .option-item.scope-device {
-    background-color: rgba(13, 202, 240, 0.08);
-  }
-
-  .option-item.scope-controller {
-    background-color: rgba(25, 135, 84, 0.08);
-  }
-
-  .option-item.scope-global {
-    background-color: rgba(255, 193, 7, 0.08);
-  }
-
-  .option-grouped::before {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .default-on {
-    background-color: rgba(25, 135, 84, 0.2);
-  }
-
-  .default-off {
-    background-color: rgba(108, 117, 125, 0.2);
-  }
-
-  .scope-hint {
-    color: #a0a0a0;
-  }
-
-  .scope-connector-line {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .scope-connector.active .scope-connector-line {
-    background: rgba(255, 255, 255, 0.3);
-  }
-
+[data-theme="dark"],
+.dark-mode {
+  --muted-color: #a0a0a0;
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --card-hover-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --card-header-bg: rgba(255, 255, 255, 0.05);
+  --card-header-border: rgba(255, 255, 255, 0.1);
+  --card-header-hover-bg: rgba(255, 255, 255, 0.08);
+  --list-item-border: rgba(255, 255, 255, 0.08);
+  --progress-bg: rgba(255, 255, 255, 0.08);
+  --scope-device-bg: rgba(13, 202, 240, 0.08);
+  --scope-controller-bg: rgba(25, 135, 84, 0.08);
+  --scope-global-bg: rgba(255, 193, 7, 0.08);
+  --grouped-bar: rgba(255, 255, 255, 0.1);
+  --default-on-bg: rgba(25, 135, 84, 0.2);
+  --default-off-bg: rgba(108, 117, 125, 0.2);
+  --scope-hint-color: #a0a0a0;
+  --connector-line: rgba(255, 255, 255, 0.1);
+  --connector-active: rgba(255, 255, 255, 0.3);
 }
 
 [data-theme="dark"] .text-muted,
@@ -448,86 +477,8 @@
   color: #a0a0a0 !important;
 }
 
-[data-theme="dark"] .card,
-.dark-mode .card {
-  background-color: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .card:hover,
-.dark-mode .card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .card-header,
-.dark-mode .card-header {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-[data-theme="dark"] #optionsContainer .card-header:hover,
-.dark-mode #optionsContainer .card-header:hover {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-[data-theme="dark"] .list-group-item,
-.dark-mode .list-group-item {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
 [data-theme="dark"] .badge.bg-secondary,
 .dark-mode .badge.bg-secondary {
   background-color: #6c757d !important;
   color: #fff !important;
 }
-
-[data-theme="dark"] .category-progress,
-.dark-mode .category-progress {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .option-item.scope-device,
-.dark-mode .option-item.scope-device {
-  background-color: rgba(13, 202, 240, 0.08);
-}
-
-[data-theme="dark"] .option-item.scope-controller,
-.dark-mode .option-item.scope-controller {
-  background-color: rgba(25, 135, 84, 0.08);
-}
-
-[data-theme="dark"] .option-item.scope-global,
-.dark-mode .option-item.scope-global {
-  background-color: rgba(255, 193, 7, 0.08);
-}
-
-[data-theme="dark"] .option-grouped::before,
-.dark-mode .option-grouped::before {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-[data-theme="dark"] .default-on,
-.dark-mode .default-on {
-  background-color: rgba(25, 135, 84, 0.2);
-}
-
-[data-theme="dark"] .default-off,
-.dark-mode .default-off {
-  background-color: rgba(108, 117, 125, 0.2);
-}
-
-[data-theme="dark"] .scope-hint,
-.dark-mode .scope-hint {
-  color: #a0a0a0;
-}
-
-[data-theme="dark"] .scope-connector-line,
-.dark-mode .scope-connector-line {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-[data-theme="dark"] .scope-connector.active .scope-connector-line,
-.dark-mode .scope-connector.active .scope-connector-line {
-  background: rgba(255, 255, 255, 0.3);
-}
-

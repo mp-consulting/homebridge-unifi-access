@@ -9,6 +9,7 @@ import { type DeviceCatalogEntry, type SensorInput, getDeviceCatalog } from "../
 import type { AccessController } from "../access-controller.js";
 import { AccessDevice } from "../access-device.js";
 import { AccessReservedNames } from "../access-types.js";
+import { ACCESS_GATE_DIRECTION_DURATION } from "../settings.js";
 import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs } from "./access-hub-types.js";
 import { discoverDoorIds } from "./access-hub-api.js";
 import { registerEventHandlers } from "./access-hub-events.js";
@@ -28,15 +29,22 @@ export type HkStateKey = KeyOf<AccessHub, "hk", "State">;
 class HubEventBus {
 
   private readonly emitter = new EventEmitter();
+  private logger?: (message: string, ...params: unknown[]) => void;
 
   emit<K extends HubEventKey>(event: K, data: HubEventMap[K]): void {
 
+    this.logger?.("Event bus: %s %s.", event, JSON.stringify(data));
     this.emitter.emit(event, data);
   }
 
   on<K extends HubEventKey>(event: K, handler: (data: HubEventMap[K]) => void): void {
 
     this.emitter.on(event, handler as (...args: unknown[]) => void);
+  }
+
+  setLogger(logger: (message: string, ...params: unknown[]) => void): void {
+
+    this.logger = logger;
   }
 }
 
@@ -51,6 +59,9 @@ export class AccessHub extends AccessDevice {
   // Device configuration - public for module access.
   public readonly catalog: DeviceCatalogEntry;
   public doorbellRingRequestId: string | null;
+  public gateDirection: "opening" | "closing" | null;
+  public gateDirectionDuration: number;
+  public gateDirectionUntil: number;
   public gateTransitionUntil: number;
   public lockDelayInterval: number | undefined;
   public mainDoorLocationId: string | undefined;
@@ -66,6 +77,8 @@ export class AccessHub extends AccessDevice {
 
     super(controller, accessory);
 
+    this.hubEvents.setLogger(this.log.debug.bind(this.log));
+
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.catalog = getDeviceCatalog(device.device_type) ?? getDeviceCatalog("UAH")!;
     this.uda = device;
@@ -73,6 +86,9 @@ export class AccessHub extends AccessDevice {
     this._hkLockState = hubLockState(this);
     this._hkSideDoorDpsState = hubDpsState(this, true);
     this._hkSideDoorLockState = hubLockState(this, true);
+    this.gateDirection = null;
+    this.gateDirectionDuration = ((this.getFeatureNumber("Hub.GateDirectionDuration") ?? ACCESS_GATE_DIRECTION_DURATION) * 1000);
+    this.gateDirectionUntil = 0;
     this.gateTransitionUntil = 0;
     this.lockDelayInterval = this.getFeatureNumber("Hub.LockDelayInterval") ?? undefined;
     this.mainDoorLocationId = undefined;
@@ -176,6 +192,17 @@ export class AccessHub extends AccessDevice {
 
   // HomeKit DPS state setter. Updates the backing variable, contact sensor, and emits events.
   public set hkDpsState(value: CharacteristicValue) {
+
+    // Suppress contradictory DPS events during gate movement (e.g. sensor bounce as the gate moves past).
+    if(this.gateDirection && (Date.now() < this.gateDirectionUntil)) {
+
+      const isClosed = value === this.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+
+      if((this.gateDirection === "opening" && isClosed) || (this.gateDirection === "closing" && !isClosed)) {
+
+        return;
+      }
+    }
 
     this._hkDpsState = value;
     setContactSensorState(this, AccessReservedNames.CONTACT_DPS, value);

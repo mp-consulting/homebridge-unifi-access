@@ -24,7 +24,7 @@ export default ts.config(
 
   {
 
-    files: [ "homebridge-ui/public/**/*.js", "homebridge-ui/server.js", "eslint.config.mjs" ],
+    files: [ "homebridge-ui/public/**/*.js", "homebridge-ui/public/modules/**/*.js", "homebridge-ui/server.js", "eslint.config.mjs" ],
     rules: {
 
       ...hbPluginUtils.rules.js
@@ -33,7 +33,7 @@ export default ts.config(
 
   {
 
-    files: [ "src/**.ts", "homebridge-ui/*.js", "homebridge-ui/public/**/*.js", "eslint.config.mjs" ],
+    files: [ "src/**.ts", "homebridge-ui/*.js", "homebridge-ui/public/**/*.js", "homebridge-ui/public/modules/**/*.js", "eslint.config.mjs" ],
 
     languageOptions: {
 
@@ -45,7 +45,10 @@ export default ts.config(
 
         projectService: {
 
-          allowDefaultProject: [ "eslint.config.mjs", "homebridge-ui/*.js", "homebridge-ui/public/*.js", "homebridge-ui/public/modules/*.js" ],
+          allowDefaultProject: [
+            "eslint.config.mjs", "homebridge-ui/*.js", "homebridge-ui/public/*.js",
+            "homebridge-ui/public/modules/*.js", "homebridge-ui/public/modules/feature-options/*.js"
+          ],
           defaultProject: "./tsconfig.json",
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20 // eslint-disable-line camelcase
         }
@@ -72,7 +75,7 @@ export default ts.config(
 
   {
 
-    files: [ "homebridge-ui/public/*.js", "homebridge-ui/public/modules/*.js" ],
+    files: [ "homebridge-ui/public/*.js", "homebridge-ui/public/modules/*.js", "homebridge-ui/public/modules/**/*.js" ],
 
     languageOptions: {
 

@@ -216,8 +216,9 @@ function handleDeviceUpdateV2(hub: AccessHub, packet: AccessEventPacket): void {
     }
   }
 
-  // Process location_states for UA Gate hubs - this contains lock state per door.
-  if(data.location_states && hub.catalog.usesLocationApi) {
+  // Process location_states for UA Gate hubs - this contains lock state per door. Skip during gate transition since the controller sends noisy/unreliable state for
+  // both doors in the same event while the gate is moving.
+  if(data.location_states && hub.catalog.usesLocationApi && (Date.now() >= hub.gateTransitionUntil) && (Date.now() >= hub.sideDoorGateTransitionUntil)) {
 
     const locationStates = data.location_states;
 
@@ -266,6 +267,12 @@ function handleLocationUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   const locationData = packet.data as unknown as AccessEventLocationUpdate;
 
   if(!locationData.state) {
+
+    return;
+  }
+
+  // Skip during gate transition since the controller sends noisy/unreliable state for all doors while the gate is moving.
+  if((Date.now() < hub.gateTransitionUntil) || (Date.now() < hub.sideDoorGateTransitionUntil)) {
 
     return;
   }
@@ -335,21 +342,27 @@ function updateDoorFromLocationState(
   const newLockState = toLockState(hub, doorState.lock);
   const newDpsState = toDpsState(hub, doorState.dps);
 
-  // Update lock state. The hub event bus will handle MQTT publishing and logging.
+  // Update lock state if changed. The hub event bus will handle MQTT publishing and logging.
   if(isSideDoor) {
 
-    hub.hkSideDoorLockState = newLockState;
-  } else {
+    if(newLockState !== hub._hkSideDoorLockState) {
+
+      hub.hkSideDoorLockState = newLockState;
+    }
+  } else if(newLockState !== hub._hkLockState) {
 
     hub.hkLockState = newLockState;
   }
 
-  // Update DPS state. The hub event bus will handle MQTT publishing and logging.
+  // Update DPS state if changed. The hub event bus will handle MQTT publishing and logging.
   if(isSideDoor) {
 
-    hub._hkSideDoorDpsState = newDpsState;
-    hub.hubEvents.emit("dps:changed", { isSideDoor: true, value: newDpsState });
-  } else {
+    if(newDpsState !== hub._hkSideDoorDpsState) {
+
+      hub._hkSideDoorDpsState = newDpsState;
+      hub.hubEvents.emit("dps:changed", { isSideDoor: true, value: newDpsState });
+    }
+  } else if(newDpsState !== hub._hkDpsState) {
 
     hub.hkDpsState = newDpsState;
   }

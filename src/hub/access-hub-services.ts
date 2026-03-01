@@ -50,6 +50,14 @@ export function registerServiceReactions(hub: AccessHub): void {
       // For UA Gate, lock trigger only (GarageDoorOpener state is driven by DPS events, not lock events).
       if(hub.catalog.usesLocationApi) {
 
+        // Track gate direction for external triggers (NFC, remote, physical button) to suppress DPS sensor bounce during movement. Skip if direction is already set
+        // (e.g. from a HomeKit command).
+        if(!data.isSideDoor && !isLocked(hub, data.value) && (Date.now() >= hub.gateDirectionUntil)) {
+
+          hub.gateDirection = isClosed(hub, hub._hkDpsState) ? "opening" : "closing";
+          hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
+        }
+
         hub.accessory.getServiceById(hub.hap.Service.Switch, triggerSubtype)?.updateCharacteristic(hub.hap.Characteristic.On, !isLocked(hub, data.value));
 
         return;
@@ -528,6 +536,10 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
       } else {
 
         hub.gateTransitionUntil = Date.now() + GATE_TRANSITION_COOLDOWN_MS;
+
+        // Track gate direction to suppress contradictory DPS sensor bounces during movement.
+        hub.gateDirection = shouldClose ? "closing" : "opening";
+        hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
       }
 
       // Immediately show transitional state (Opening/Closing) while the door moves.
@@ -537,13 +549,15 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
       // Trigger the gate.
       if(!(await hubDoorLockCommand(hub, false, isSideDoor))) {
 
-        // Clear the transition cooldown on failure.
+        // Clear the transition cooldown and direction on failure.
         if(isSideDoor) {
 
           hub.sideDoorGateTransitionUntil = 0;
         } else {
 
           hub.gateTransitionUntil = 0;
+          hub.gateDirection = null;
+          hub.gateDirectionUntil = 0;
         }
 
         // Revert target state on failure.

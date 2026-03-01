@@ -6,53 +6,128 @@ import { PLUGIN_NAME } from "./modules/constants.js";
 import { handleDiscover } from "./modules/discovery.js";
 import { renderOptions } from "./modules/feature-options.js";
 
-// Search & toolbar.
-let searchTimeout = null;
-
-$("optionsSearch").addEventListener("input", () => {
+// Bind event listeners for the discovery screen.
+const bindDiscoveryScreen = () => {
 
 
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => renderOptions(), 300);
-});
-
-$("clearSearchBtn").addEventListener("click", () => {
+  $("discoverBtn").addEventListener("click", handleDiscover);
+  $("manualEntryBtn").addEventListener("click", () => openAddController());
+  $("cancelDiscoveryBtn").addEventListener("click", () => {
 
 
-  $("optionsSearch").value = "";
-  renderOptions();
-});
+    showScreen("controllersScreen");
+    renderControllers();
+  });
+};
 
-$("scopeSelect").addEventListener("change", () => renderOptions());
-$("modifiedOnlyToggle").addEventListener("change", () => renderOptions());
-
-// Event listeners.
-$("discoverBtn").addEventListener("click", handleDiscover);
-$("manualEntryBtn").addEventListener("click", () => openAddController());
-$("cancelDiscoveryBtn").addEventListener("click", () => {
+// Bind event listeners for the setup (add/edit controller) screen.
+const bindSetupScreen = () => {
 
 
-  showScreen("controllersScreen");
-  renderControllers();
-});
-$("addControllerBtn").addEventListener("click", () => {
+  $("setupForm").addEventListener("submit", handleSetupSubmit);
+  $("cancelSetupBtn").addEventListener("click", () => {
 
 
-  if(getControllers().length) {
+    if(getControllers().length) {
 
 
-    showScreen("discoveryScreen");
-    $("cancelDiscoveryBtn").style.display = "inline-block";
-  } else {
+      showScreen("controllersScreen");
+      renderControllers();
+    } else {
 
 
-    showScreen("discoveryScreen");
+      showScreen("discoveryScreen");
+    }
+  });
+};
+
+// Bind event listeners for the controllers list screen.
+const bindControllersScreen = () => {
+
+
+  $("addControllerBtn").addEventListener("click", () => {
+
+
+    if(getControllers().length) {
+
+
+      showScreen("discoveryScreen");
+      $("cancelDiscoveryBtn").style.display = "inline-block";
+    } else {
+
+
+      showScreen("discoveryScreen");
+    }
+  });
+
+  $("supportBtn").addEventListener("click", () => showScreen("supportScreen"));
+};
+
+// Bind event listeners for the feature options screen.
+const bindFeatureOptionsScreen = () => {
+
+
+  let searchTimeout = null;
+
+  $("optionsSearch").addEventListener("input", () => {
+
+
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => renderOptions(), 300);
+  });
+
+  $("clearSearchBtn").addEventListener("click", () => {
+
+
+    $("optionsSearch").value = "";
+    renderOptions();
+  });
+
+  $("scopeSelect").addEventListener("change", () => renderOptions());
+  $("modifiedOnlyToggle").addEventListener("change", () => renderOptions());
+  $("backFromOptionsBtn").addEventListener("click", () => {
+
+
+    showScreen("controllersScreen");
+    renderControllers();
+  });
+};
+
+// Bind event listeners for the support screen.
+const bindSupportScreen = () => {
+
+
+  $("backFromSupportBtn").addEventListener("click", () => {
+
+
+    showScreen("controllersScreen");
+    renderControllers();
+  });
+};
+
+// Initialize the plugin UI.
+const init = async () => {
+
+
+  bindDiscoveryScreen();
+  bindSetupScreen();
+  bindControllersScreen();
+  bindFeatureOptionsScreen();
+  bindSupportScreen();
+
+  // Load plugin configuration.
+  state.pluginConfig = await homebridge.getPluginConfig();
+
+  if(!state.pluginConfig.length) {
+
+
+    state.pluginConfig = [{ name: PLUGIN_NAME }];
+    await homebridge.updatePluginConfig(state.pluginConfig);
   }
-});
-$("setupForm").addEventListener("submit", handleSetupSubmit);
-$("cancelSetupBtn").addEventListener("click", () => {
 
+  state.pluginConfig[0].name ||= PLUGIN_NAME;
 
+  // Show the right screen.
   if(getControllers().length) {
 
 
@@ -62,43 +137,8 @@ $("cancelSetupBtn").addEventListener("click", () => {
 
 
     showScreen("discoveryScreen");
+    $("cancelDiscoveryBtn").style.display = "none";
   }
-});
-$("backFromOptionsBtn").addEventListener("click", () => {
+};
 
-
-  showScreen("controllersScreen");
-  renderControllers();
-});
-$("backFromSupportBtn").addEventListener("click", () => {
-
-
-  showScreen("controllersScreen");
-  renderControllers();
-});
-$("supportBtn").addEventListener("click", () => showScreen("supportScreen"));
-
-// Initialization.
-state.pluginConfig = await homebridge.getPluginConfig();
-
-if(!state.pluginConfig.length) {
-
-
-  state.pluginConfig = [{ name: PLUGIN_NAME }];
-  await homebridge.updatePluginConfig(state.pluginConfig);
-}
-
-state.pluginConfig[0].name ||= PLUGIN_NAME;
-
-// Show the right screen.
-if(getControllers().length) {
-
-
-  showScreen("controllersScreen");
-  renderControllers();
-} else {
-
-
-  showScreen("discoveryScreen");
-  $("cancelDiscoveryBtn").style.display = "none";
-}
+init();
