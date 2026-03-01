@@ -48,8 +48,8 @@ This plugin discovers all your supported UniFi Access devices and makes them ava
 - **Automatic name sync** - device and door names from UniFi Access are automatically reflected in HomeKit, including per-door names for multi-door hubs like the UA Gate
 - **Multiple controllers** - seamlessly integrate several UniFi Access controllers into HomeKit
 - **Realtime device detection** - automatically adds and removes devices in HomeKit as they change on your controller, without restarting Homebridge
-- **Customizable** - [feature options](docs/FeatureOptions.md) let you show/hide specific devices and tailor behavior via the built-in webUI
-- **MQTT support** - publish events to an [MQTT broker](docs/MQTT.md) for further automation
+- **Customizable** - [feature options](docs/feature-options.md) let you show/hide specific devices and tailor behavior via the built-in webUI
+- **MQTT support** - publish events to an [MQTT broker](docs/mqtt.md) for further automation
 
 ## Prerequisites
 
@@ -100,14 +100,14 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 | `controllers[].name` | Custom name for the controller (used in logs) |
 | `controllers[].mqttUrl` | MQTT broker URL (e.g. `mqtt://1.2.3.4`) |
 | `controllers[].mqttTopic` | MQTT base topic (default: `unifi/access`) |
-| `options` | Array of [feature options](docs/FeatureOptions.md) for granular control |
+| `options` | Array of [feature options](docs/feature-options.md) for granular control |
 | `ringDelay` | Delay in seconds between doorbell rings (default: `0`) |
 
 ## Documentation
 
-- [Feature Options](docs/FeatureOptions.md) - show/hide devices and customize behavior
-- [MQTT](docs/MQTT.md) - configure MQTT event publishing
-- [Events](docs/Events.md) - UniFi Access event types and payloads
+- [Feature Options](docs/feature-options.md) - show/hide devices and customize behavior
+- [MQTT](docs/mqtt.md) - configure MQTT event publishing
+- [Events](docs/events.md) - UniFi Access event types and payloads
 - [UniFi Access API](https://www.npmjs.com/package/unifi-access) - native API library
 - [Changelog](CHANGELOG.md) - release notes and version history
 
