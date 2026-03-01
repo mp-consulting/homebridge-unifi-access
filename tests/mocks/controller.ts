@@ -1,8 +1,8 @@
 /* Mock AccessController for testing. */
-import { vi } from "vitest";
-import { EventEmitter } from "node:events";
-import { createMockAPI, createMockHAP } from "./homebridge.js";
-import { createMockAccessApi, createMockControllerConfig } from "./unifi-access.js";
+import { vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { createMockAPI, createMockHAP } from './homebridge.js';
+import { createMockAccessApi, createMockControllerConfig } from './unifi-access.js';
 
 // Create a mock log object that captures messages.
 export function createMockLog() {
@@ -11,7 +11,7 @@ export function createMockLog() {
     debug: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn()
+    warn: vi.fn(),
   };
 }
 
@@ -32,10 +32,10 @@ export function createMockPlatform() {
       getFloat: vi.fn().mockReturnValue(null),
       getInteger: vi.fn().mockReturnValue(null),
       test: vi.fn().mockReturnValue(true),
-      value: vi.fn().mockReturnValue(null)
+      value: vi.fn().mockReturnValue(null),
     },
 
-    log
+    log,
   };
 }
 
@@ -50,20 +50,17 @@ export function createMockController(overrides: Record<string, unknown> = {}) {
   const log = createMockLog();
   const hap = createMockHAP();
 
-  // Default feature options — all enabled.
-  const enabledFeatures = new Set<string>();
-
   const controller = {
 
     api: platform.api,
-    config: { address: "192.168.1.1", mqttTopic: "unifi/access", password: "test", username: "admin" },
+    config: { address: '192.168.1.1', mqttTopic: 'unifi/access', password: 'test', username: 'admin' },
     configuredDevices: {} as Record<string, unknown>,
     events,
     hap,
 
     hasFeature: vi.fn((_option: string, _device?: unknown) => true),
 
-    id: "controller-test-id",
+    id: 'controller-test-id',
     log,
     logApiErrors: true,
     mqtt: null as { publish: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn>; subscribeGet: ReturnType<typeof vi.fn>;
@@ -77,7 +74,7 @@ export function createMockController(overrides: Record<string, unknown> = {}) {
     uda: createMockControllerConfig(),
     udaApi,
 
-    ...overrides
+    ...overrides,
   };
 
   return controller;
@@ -91,6 +88,6 @@ export function createMockMqtt() {
     subscribe: vi.fn(),
     subscribeGet: vi.fn(),
     subscribeSet: vi.fn(),
-    unsubscribe: vi.fn()
+    unsubscribe: vi.fn(),
   };
 }

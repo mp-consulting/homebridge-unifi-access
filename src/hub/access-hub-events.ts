@@ -3,18 +3,18 @@
  * access-hub-events.ts: External event parsing for the UniFi Access hub. Parses UniFi Access API events and updates hub state.
  * MQTT publishing and logging are handled automatically by the hub event bus subscribers.
  */
-import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from "unifi-access";
-import { AccessEventType, AccessReservedNames } from "../access-types.js";
+import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from 'unifi-access';
+import { AccessEventType } from '../access-types.js';
 import {
   AUTO_LOCK_DELAY_MS, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate, type AccessMethodKey, type HasWiringHintKey,
-  type LogHintKey, accessMethods, terminalInputs
-} from "./access-hub-types.js";
-import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from "../access-device-catalog.js";
-import type { AccessHub, HkStateKey } from "./access-hub.js";
-import { configureTerminalInputs, updateSideDoorServiceNames } from "./access-hub-services.js";
+  accessMethods, terminalInputs,
+} from './access-hub-types.js';
+import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from '../access-device-catalog.js';
+import type { AccessHub, HkStateKey } from './access-hub.js';
+import { configureTerminalInputs, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
-  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, toDpsState, toLockState
-} from "./access-hub-utils.js";
+  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, toDpsState, toLockState,
+} from './access-hub-utils.js';
 
 // Register external event handlers on the controller's event emitter. This is the entry point for all UniFi Access API events.
 export function registerEventHandlers(hub: AccessHub): void {
@@ -158,15 +158,15 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
     if(newSideDoorDpsState !== hub._hkSideDoorDpsState) {
 
       hub._hkSideDoorDpsState = newSideDoorDpsState;
-      hub.hubEvents.emit("dps:changed", { isSideDoor: true, value: newSideDoorDpsState });
+      hub.hubEvents.emit('dps:changed', { isSideDoor: true, value: newSideDoorDpsState });
     }
   }
 
   // Process any terminal input update events if our state has changed.
   for(const { input } of terminalInputs) {
 
-    const hasKey = ("hasWiring" + input) as HasWiringHintKey;
-    const hkKey = ("hk" + input + "State") as HkStateKey;
+    const hasKey = ('hasWiring' + input) as HasWiringHintKey;
+    const hkKey = ('hk' + input + 'State') as HkStateKey;
     const newState = hubInputState(hub, input);
 
     if(hub.hints[hasKey] && (newState !== hub[hkKey])) {
@@ -188,7 +188,7 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   // Process any changes to our online status.
   if((packet.data as AccessDeviceConfig).is_online !== undefined) {
 
-    hub.hubEvents.emit("device:online", { isOnline: !!(packet.data as AccessDeviceConfig).is_online });
+    hub.hubEvents.emit('device:online', { isOnline: !!(packet.data as AccessDeviceConfig).is_online });
   }
 }
 
@@ -202,7 +202,7 @@ function handleDeviceUpdateV2(hub: AccessHub, packet: AccessEventPacket): void {
 
     for(const [ key, value ] of Object.entries(data.access_method) as [AccessMethodKey, string][]) {
 
-      if((value !== "yes") && (value !== "no")) {
+      if((value !== 'yes') && (value !== 'no')) {
 
         continue;
       }
@@ -211,13 +211,13 @@ function handleDeviceUpdateV2(hub: AccessHub, packet: AccessEventPacket): void {
 
       if(accessMethod) {
 
-        hub.accessory.getServiceById(hub.hap.Service.Switch, accessMethod.subtype)?.updateCharacteristic(hub.hap.Characteristic.On, value === "yes");
+        hub.accessory.getServiceById(hub.hap.Service.Switch, accessMethod.subtype)?.updateCharacteristic(hub.hap.Characteristic.On, value === 'yes');
       }
     }
   }
 
-  // Process location_states for UA Gate hubs - this contains lock state per door. Skip during gate transition since the controller sends noisy/unreliable state for
-  // both doors in the same event while the gate is moving.
+  // Process location_states for UA Gate hubs - this contains lock state per door. Skip during gate transition since the controller sends
+  // noisy/unreliable state for both doors in the same event while the gate is moving.
   if(data.location_states && hub.catalog.usesLocationApi && (Date.now() >= hub.gateTransitionUntil) && (Date.now() >= hub.sideDoorGateTransitionUntil)) {
 
     const locationStates = data.location_states;
@@ -307,7 +307,7 @@ function handleLocationUpdate(hub: AccessHub, packet: AccessEventPacket): void {
 // Handle doorbell ring events.
 function handleDoorbellRing(hub: AccessHub, packet: AccessEventPacket): void {
 
-  if(((packet.data as AccessEventDoorbellRing).connected_uah_id !== hub.uda.unique_id) || !hasCapability(hub, "door_bell")) {
+  if(((packet.data as AccessEventDoorbellRing).connected_uah_id !== hub.uda.unique_id) || !hasCapability(hub, 'door_bell')) {
 
     return;
   }
@@ -319,11 +319,11 @@ function handleDoorbellRing(hub: AccessHub, packet: AccessEventPacket): void {
     ?.sendEventNotification(hub.hap.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS);
 
   // Emit on the hub event bus for trigger switch and MQTT.
-  hub.hubEvents.emit("doorbell:ring", { requestId: hub.doorbellRingRequestId });
+  hub.hubEvents.emit('doorbell:ring', { requestId: hub.doorbellRingRequestId });
 
   if(hub.hints.logDoorbell) {
 
-    hub.log.info("Doorbell ring detected.");
+    hub.log.info('Doorbell ring detected.');
   }
 }
 
@@ -338,19 +338,19 @@ function handleDoorbellCancel(hub: AccessHub, packet: AccessEventPacket): void {
   hub.doorbellRingRequestId = null;
 
   // Emit on the hub event bus for trigger switch and MQTT.
-  hub.hubEvents.emit("doorbell:cancel", {} as Record<string, never>);
+  hub.hubEvents.emit('doorbell:cancel', {} as Record<string, never>);
 
   if(hub.hints.logDoorbell) {
 
-    hub.log.info("Doorbell ring cancelled.");
+    hub.log.info('Doorbell ring cancelled.');
   }
 }
 
 // Update door state from location data (lock and DPS).
 function updateDoorFromLocationState(
   hub: AccessHub,
-  doorState: { lock: "locked" | "unlocked"; dps: "open" | "close" },
-  isSideDoor: boolean
+  doorState: { lock: 'locked' | 'unlocked'; dps: 'open' | 'close' },
+  isSideDoor: boolean,
 ): void {
 
   const newLockState = toLockState(hub, doorState.lock);
@@ -374,7 +374,7 @@ function updateDoorFromLocationState(
     if(newDpsState !== hub._hkSideDoorDpsState) {
 
       hub._hkSideDoorDpsState = newDpsState;
-      hub.hubEvents.emit("dps:changed", { isSideDoor: true, value: newDpsState });
+      hub.hubEvents.emit('dps:changed', { isSideDoor: true, value: newDpsState });
     }
   } else if(newDpsState !== hub._hkDpsState) {
 

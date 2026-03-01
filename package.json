@@ -70,16 +70,16 @@
     "unifi-access": "1.5.3"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin": "5.7.1",
-    "@types/node": "25.0.10",
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "9.39.2",
-    "homebridge": "1.11.1",
-    "homebridge-config-ui-x": "^4.80.0",
+    "eslint": "^9.39.2",
+    "homebridge": "^2.0.0-beta.55",
+    "homebridge-config-ui-x": "^5.15.0",
     "nodemon": "^3.1.11",
     "shx": "0.4.0",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.53.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.53.1",
     "vitest": "^4.0.18"
   },
   "overrides": {

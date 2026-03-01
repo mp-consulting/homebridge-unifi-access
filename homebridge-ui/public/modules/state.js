@@ -7,7 +7,7 @@ export const state = {
   editingIndex: null,
   openCategories: new Set(),
   options: {},
-  pluginConfig: []
+  pluginConfig: [],
 };
 
 export const getControllers = () => state.pluginConfig[0]?.controllers || [];

@@ -1,21 +1,21 @@
 /* @mp-consulting/homebridge-unifi-access Custom UI. */
-import { $, showScreen } from "./modules/dom-helpers.js";
-import { getControllers, state } from "./modules/state.js";
-import { handleSetupSubmit, openAddController, renderControllers } from "./modules/controllers.js";
-import { PLUGIN_NAME } from "./modules/constants.js";
-import { handleDiscover } from "./modules/discovery.js";
-import { renderOptions } from "./modules/feature-options.js";
+import { $, showScreen } from './modules/dom-helpers.js';
+import { getControllers, state } from './modules/state.js';
+import { handleSetupSubmit, openAddController, renderControllers } from './modules/controllers.js';
+import { PLUGIN_NAME } from './modules/constants.js';
+import { handleDiscover } from './modules/discovery.js';
+import { renderOptions } from './modules/feature-options.js';
 
 // Bind event listeners for the discovery screen.
 const bindDiscoveryScreen = () => {
 
 
-  $("discoverBtn").addEventListener("click", handleDiscover);
-  $("manualEntryBtn").addEventListener("click", () => openAddController());
-  $("cancelDiscoveryBtn").addEventListener("click", () => {
+  $('discoverBtn').addEventListener('click', handleDiscover);
+  $('manualEntryBtn').addEventListener('click', () => openAddController());
+  $('cancelDiscoveryBtn').addEventListener('click', () => {
 
 
-    showScreen("controllersScreen");
+    showScreen('controllersScreen');
     renderControllers();
   });
 };
@@ -24,19 +24,19 @@ const bindDiscoveryScreen = () => {
 const bindSetupScreen = () => {
 
 
-  $("setupForm").addEventListener("submit", handleSetupSubmit);
-  $("cancelSetupBtn").addEventListener("click", () => {
+  $('setupForm').addEventListener('submit', handleSetupSubmit);
+  $('cancelSetupBtn').addEventListener('click', () => {
 
 
     if(getControllers().length) {
 
 
-      showScreen("controllersScreen");
+      showScreen('controllersScreen');
       renderControllers();
     } else {
 
 
-      showScreen("discoveryScreen");
+      showScreen('discoveryScreen');
     }
   });
 };
@@ -45,22 +45,22 @@ const bindSetupScreen = () => {
 const bindControllersScreen = () => {
 
 
-  $("addControllerBtn").addEventListener("click", () => {
+  $('addControllerBtn').addEventListener('click', () => {
 
 
     if(getControllers().length) {
 
 
-      showScreen("discoveryScreen");
-      $("cancelDiscoveryBtn").style.display = "inline-block";
+      showScreen('discoveryScreen');
+      $('cancelDiscoveryBtn').style.display = 'inline-block';
     } else {
 
 
-      showScreen("discoveryScreen");
+      showScreen('discoveryScreen');
     }
   });
 
-  $("supportBtn").addEventListener("click", () => showScreen("supportScreen"));
+  $('supportBtn').addEventListener('click', () => showScreen('supportScreen'));
 };
 
 // Bind event listeners for the feature options screen.
@@ -69,26 +69,26 @@ const bindFeatureOptionsScreen = () => {
 
   let searchTimeout = null;
 
-  $("optionsSearch").addEventListener("input", () => {
+  $('optionsSearch').addEventListener('input', () => {
 
 
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => renderOptions(), 300);
   });
 
-  $("clearSearchBtn").addEventListener("click", () => {
+  $('clearSearchBtn').addEventListener('click', () => {
 
 
-    $("optionsSearch").value = "";
+    $('optionsSearch').value = '';
     renderOptions();
   });
 
-  $("scopeSelect").addEventListener("change", () => renderOptions());
-  $("modifiedOnlyToggle").addEventListener("change", () => renderOptions());
-  $("backFromOptionsBtn").addEventListener("click", () => {
+  $('scopeSelect').addEventListener('change', () => renderOptions());
+  $('modifiedOnlyToggle').addEventListener('change', () => renderOptions());
+  $('backFromOptionsBtn').addEventListener('click', () => {
 
 
-    showScreen("controllersScreen");
+    showScreen('controllersScreen');
     renderControllers();
   });
 };
@@ -97,10 +97,10 @@ const bindFeatureOptionsScreen = () => {
 const bindSupportScreen = () => {
 
 
-  $("backFromSupportBtn").addEventListener("click", () => {
+  $('backFromSupportBtn').addEventListener('click', () => {
 
 
-    showScreen("controllersScreen");
+    showScreen('controllersScreen');
     renderControllers();
   });
 };
@@ -131,13 +131,13 @@ const init = async () => {
   if(getControllers().length) {
 
 
-    showScreen("controllersScreen");
+    showScreen('controllersScreen');
     renderControllers();
   } else {
 
 
-    showScreen("discoveryScreen");
-    $("cancelDiscoveryBtn").style.display = "none";
+    showScreen('discoveryScreen');
+    $('cancelDiscoveryBtn').style.display = 'none';
   }
 };
 

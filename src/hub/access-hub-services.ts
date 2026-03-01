@@ -2,15 +2,15 @@
  *
  * access-hub-services.ts: HomeKit service configuration and state-change reactions for the UniFi Access hub.
  */
-import type { CharacteristicValue } from "homebridge";
-import type { SensorInput } from "../access-device-catalog.js";
-import { AccessReservedNames } from "../access-types.js";
-import { acquireService, sanitizeName, validService } from "homebridge-plugin-utils";
-import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey, type HubEventMap, terminalInputs } from "./access-hub-types.js";
-import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from "../settings.js";
-import type { AccessHub } from "./access-hub.js";
-import { hubDoorLockCommand } from "./access-hub-api.js";
-import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired } from "./access-hub-utils.js";
+import type { CharacteristicValue } from 'homebridge';
+import type { SensorInput } from '../access-device-catalog.js';
+import { AccessReservedNames } from '../access-types.js';
+import { acquireService, sanitizeName, validService } from 'homebridge-plugin-utils';
+import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey, type HubEventMap, terminalInputs } from './access-hub-types.js';
+import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from '../settings.js';
+import type { AccessHub } from './access-hub.js';
+import { hubDoorLockCommand } from './access-hub-api.js';
+import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired } from './access-hub-utils.js';
 
 // Start a 3-phase gate cycle: Opening → Open → Closing. The full gateDirectionDuration is split into equal thirds. DPS "close" confirms the final Closed state.
 function startGateCycle(hub: AccessHub): void {
@@ -19,10 +19,10 @@ function startGateCycle(hub: AccessHub): void {
 
   const phaseDuration = hub.gateDirectionDuration / 3;
 
-  hub.gateDirection = "opening";
+  hub.gateDirection = 'opening';
   hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
 
-  hub.log.debug("Gate cycle started: Opening → Open (%.0fs) → Closing (%.0fs) → DPS confirms Closed (%.0fs total).",
+  hub.log.debug('Gate cycle started: Opening → Open (%.0fs) → Closing (%.0fs) → DPS confirms Closed (%.0fs total).',
     phaseDuration / 1000, (phaseDuration * 2) / 1000, hub.gateDirectionDuration / 1000);
 
   const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
@@ -37,16 +37,16 @@ function startGateCycle(hub: AccessHub): void {
   // Phase 2: transition to Open after 1/3 of the duration.
   hub.gatePhaseTimers.push(setTimeout(() => {
 
-    hub.gateDirection = "open";
-    hub.log.debug("Gate cycle phase: Open.");
+    hub.gateDirection = 'open';
+    hub.log.debug('Gate cycle phase: Open.');
     gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPEN);
   }, phaseDuration));
 
   // Phase 3: transition to Closing after 2/3 of the duration.
   hub.gatePhaseTimers.push(setTimeout(() => {
 
-    hub.gateDirection = "closing";
-    hub.log.debug("Gate cycle phase: Closing.");
+    hub.gateDirection = 'closing';
+    hub.log.debug('Gate cycle phase: Closing.');
 
     if(gdoService) {
 
@@ -84,12 +84,12 @@ export function configureServices(hub: AccessHub): void {
 export function registerServiceReactions(hub: AccessHub): void {
 
   // React to lock state changes by updating the Lock or GarageDoorOpener service.
-  hub.hubEvents.on("lock:changed", (data: HubEventMap["lock:changed"]) => {
+  hub.hubEvents.on('lock:changed', (data: HubEventMap['lock:changed']) => {
 
-    const serviceType = data.isSideDoor ? "Lock" : doorServiceType(hub);
+    const serviceType = data.isSideDoor ? 'Lock' : doorServiceType(hub);
     const triggerSubtype = data.isSideDoor ? AccessReservedNames.SWITCH_LOCK_DOOR_SIDE_TRIGGER : AccessReservedNames.SWITCH_LOCK_TRIGGER;
 
-    if(serviceType === "GarageDoorOpener") {
+    if(serviceType === 'GarageDoorOpener') {
 
       // For UA Gate, lock trigger only (GarageDoorOpener state is driven by DPS events, not lock events).
       if(hub.catalog.usesLocationApi) {
@@ -106,7 +106,7 @@ export function registerServiceReactions(hub: AccessHub): void {
 
             // Gate is open, starting to close.
             hub.clearGatePhaseTimers();
-            hub.gateDirection = "closing";
+            hub.gateDirection = 'closing';
             hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
 
             const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
@@ -157,25 +157,25 @@ export function registerServiceReactions(hub: AccessHub): void {
 
       if(data.isSideDoor) {
 
-        hub.log.info("%s %s.", hub.sideDoorName ?? "Side door", isLocked(hub, data.value) ? "locked" : "unlocked");
+        hub.log.info('%s %s.', hub.sideDoorName ?? 'Side door', isLocked(hub, data.value) ? 'locked' : 'unlocked');
       } else if(hub.catalog.usesLocationApi) {
 
-        hub.log.info("%s %s.", hub.mainDoorName ?? "Gate", isLocked(hub, data.value) ? "locked" : "unlocked");
+        hub.log.info('%s %s.', hub.mainDoorName ?? 'Gate', isLocked(hub, data.value) ? 'locked' : 'unlocked');
       } else {
 
-        hub.log.info(isLocked(hub, data.value) ? "Locked." : "Unlocked.");
+        hub.log.info(isLocked(hub, data.value) ? 'Locked.' : 'Unlocked.');
       }
     }
   });
 
   // React to DPS state changes by updating the GarageDoorOpener or side door contact sensor.
-  hub.hubEvents.on("dps:changed", (data: HubEventMap["dps:changed"]) => {
+  hub.hubEvents.on('dps:changed', (data: HubEventMap['dps:changed']) => {
 
     // Log DPS state changes.
     if(hub.hints.logDps) {
 
-      hub.log.info("%s position sensor %s.", data.isSideDoor ? (hub.sideDoorName ?? "Side door") : (hub.mainDoorName ?? "Door"),
-        isClosed(hub, data.value) ? "closed" : "open");
+      hub.log.info('%s position sensor %s.', data.isSideDoor ? (hub.sideDoorName ?? 'Side door') : (hub.mainDoorName ?? 'Door'),
+        isClosed(hub, data.value) ? 'closed' : 'open');
     }
 
     // Side door DPS: update the side door contact sensor and return — the GarageDoorOpener only reflects main door state.
@@ -187,15 +187,15 @@ export function registerServiceReactions(hub: AccessHub): void {
       return;
     }
 
-    if(doorServiceType(hub) !== "GarageDoorOpener" || !hub.catalog.usesLocationApi) {
+    if(doorServiceType(hub) !== 'GarageDoorOpener' || !hub.catalog.usesLocationApi) {
 
       return;
     }
 
     // During the opening and open phases, the timer drives GDO state — don't update from DPS events.
-    if(hub.gateDirection === "opening" || hub.gateDirection === "open") {
+    if(hub.gateDirection === 'opening' || hub.gateDirection === 'open') {
 
-      hub.log.debug("Gate DPS event ignored during %s phase.", hub.gateDirection);
+      hub.log.debug('Gate DPS event ignored during %s phase.', hub.gateDirection);
 
       return;
     }
@@ -208,15 +208,15 @@ export function registerServiceReactions(hub: AccessHub): void {
     }
 
     // During the closing phase, only DPS "close" finalizes to Closed.
-    if(hub.gateDirection === "closing") {
+    if(hub.gateDirection === 'closing') {
 
       if(data.value === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED) {
 
-        hub.log.debug("Gate DPS confirmed Closed — cycle complete, cooldown active.");
+        hub.log.debug('Gate DPS confirmed Closed — cycle complete, cooldown active.');
         hub.clearGatePhaseTimers();
 
-        // Keep "closing" direction active as a cooldown to suppress DPS bounce after the gate settles. The bounce filter will suppress any DPS "open" events until
-        // the cooldown expires. Use one phase duration (1/3 of the full cycle) to cover the settling period.
+        // Keep "closing" direction active as a cooldown to suppress DPS bounce after the gate settles. The bounce filter will suppress any
+        // DPS "open" events until the cooldown expires. Use one phase duration (1/3 of the full cycle) to cover the settling period.
         hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
 
         service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
@@ -227,7 +227,7 @@ export function registerServiceReactions(hub: AccessHub): void {
     }
 
     // No active gate cycle — update GDO state directly from DPS.
-    hub.log.debug("Gate DPS update (no active cycle): %s.", isClosed(hub, data.value) ? "Closed" : "Open");
+    hub.log.debug('Gate DPS update (no active cycle): %s.', isClosed(hub, data.value) ? 'Closed' : 'Open');
     const doorState = data.value === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ?
       hub.hap.Characteristic.CurrentDoorState.CLOSED : hub.hap.Characteristic.CurrentDoorState.OPEN;
     const targetState = data.value === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ?
@@ -238,22 +238,22 @@ export function registerServiceReactions(hub: AccessHub): void {
   });
 
   // React to doorbell ring events by updating the doorbell trigger switch.
-  hub.hubEvents.on("doorbell:ring", () => {
+  hub.hubEvents.on('doorbell:ring', () => {
 
     hub.accessory.getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)?.updateCharacteristic(hub.hap.Characteristic.On, true);
   });
 
   // React to doorbell cancel events by updating the doorbell trigger switch.
-  hub.hubEvents.on("doorbell:cancel", () => {
+  hub.hubEvents.on('doorbell:cancel', () => {
 
     hub.accessory.getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)?.updateCharacteristic(hub.hap.Characteristic.On, false);
   });
 
   // Log sensor state changes (REL, REN, REX - DPS is logged by dps:changed).
-  hub.hubEvents.on("sensor:changed", (data: HubEventMap["sensor:changed"]) => {
+  hub.hubEvents.on('sensor:changed', (data: HubEventMap['sensor:changed']) => {
 
     // DPS logging is handled by the dps:changed handler.
-    if(data.input === "Dps") {
+    if(data.input === 'Dps') {
 
       return;
     }
@@ -263,19 +263,19 @@ export function registerServiceReactions(hub: AccessHub): void {
       return;
     }
 
-    const logKey = ("log" + data.input) as keyof typeof hub.hints;
+    const logKey = ('log' + data.input) as keyof typeof hub.hints;
     const label = terminalInputs.find(t => t.input === data.input)?.label;
 
     if(label && hub.hints[logKey]) {
 
-      hub.log.info("%s %s.", label, isClosed(hub, data.value) ? "closed" : "open");
+      hub.log.info('%s %s.', label, isClosed(hub, data.value) ? 'closed' : 'open');
     }
   });
 
   // React to device online status changes by updating contact sensor StatusActive.
-  hub.hubEvents.on("device:online", (data: HubEventMap["device:online"]) => {
+  hub.hubEvents.on('device:online', (data: HubEventMap['device:online']) => {
 
-    for(const sensor of Object.keys(AccessReservedNames).filter(key => key.startsWith("CONTACT_"))) {
+    for(const sensor of Object.keys(AccessReservedNames).filter(key => key.startsWith('CONTACT_'))) {
 
       hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames[sensor as keyof typeof AccessReservedNames])?.
         updateCharacteristic(hub.hap.Characteristic.StatusActive, data.isOnline);
@@ -290,23 +290,23 @@ function configureAccessMethodSwitches(hub: AccessHub): boolean {
 
     // Validate whether we should have this service enabled.
     if(!validService(hub.accessory, hub.hap.Service.Switch,
-      hasCapability(hub, "is_reader") && hasCapability(hub, accessMethod.capability) && hub.hasFeature(accessMethod.option), accessMethod.subtype)) {
+      hasCapability(hub, 'is_reader') && hasCapability(hub, accessMethod.capability) && hub.hasFeature(accessMethod.option), accessMethod.subtype)) {
 
       continue;
     }
 
     // Acquire the service.
-    const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + " " + accessMethod.name, accessMethod.subtype);
+    const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + ' ' + accessMethod.name, accessMethod.subtype);
 
     if(!service) {
 
-      hub.log.error("Unable to add the %s access method switch.", accessMethod.name);
+      hub.log.error('Unable to add the %s access method switch.', accessMethod.name);
 
       continue;
     }
 
     // Retrieve the state when requested.
-    service.getCharacteristic(hub.hap.Characteristic.On).onGet(() => getConfigValue(hub.uda.configs, accessMethod.key) === "yes");
+    service.getCharacteristic(hub.hap.Characteristic.On).onGet(() => getConfigValue(hub.uda.configs, accessMethod.key) === 'yes');
 
     // Set the state when requested.
     service.getCharacteristic(hub.hap.Characteristic.On).onSet(async (value: CharacteristicValue) => {
@@ -317,14 +317,14 @@ function configureAccessMethodSwitches(hub: AccessHub): boolean {
 
       if(entry) {
 
-        const endpoint = isConfigsApi ? "/configs?is_camera=true" : "/settings";
-        const keys = (isConfigsApi && ("configsApiKeys" in accessMethod)) ? accessMethod.configsApiKeys : [accessMethod.key];
-        const payload = keys.map(key => ({ key: key, tag: "open_door_mode", value: value ? "yes" : "no" }));
+        const endpoint = isConfigsApi ? '/configs?is_camera=true' : '/settings';
+        const keys = (isConfigsApi && ('configsApiKeys' in accessMethod)) ? accessMethod.configsApiKeys : [accessMethod.key];
+        const payload = keys.map(key => ({ key: key, tag: 'open_door_mode', value: value ? 'yes' : 'no' }));
 
-        const response = await hub.controller.udaApi.retrieve(hub.controller.udaApi.getApiEndpoint("device") + "/" + hub.uda.unique_id + endpoint, {
+        const response = await hub.controller.udaApi.retrieve(hub.controller.udaApi.getApiEndpoint('device') + '/' + hub.uda.unique_id + endpoint, {
 
           body: JSON.stringify(payload),
-          method: "PUT"
+          method: 'PUT',
         });
 
         success = hub.controller.udaApi.responseOk(response?.statusCode);
@@ -333,13 +333,13 @@ function configureAccessMethodSwitches(hub: AccessHub): boolean {
       // If we didn't find the configuration entry or we didn't succeed in setting the value, revert our switch state.
       if(!success) {
 
-        hub.log.error("Unable to %s the %s access method.", value ? "activate" : "deactivate", accessMethod.name);
+        hub.log.error('Unable to %s the %s access method.', value ? 'activate' : 'deactivate', accessMethod.name);
         setTimeout(() => service.updateCharacteristic(hub.hap.Characteristic.On, !value), HK_CHARACTERISTIC_REVERT_DELAY_MS);
       }
     });
 
     // Initialize the switch.
-    service.updateCharacteristic(hub.hap.Characteristic.On, getConfigValue(hub.uda.configs, accessMethod.key) === "yes");
+    service.updateCharacteristic(hub.hap.Characteristic.On, getConfigValue(hub.uda.configs, accessMethod.key) === 'yes');
   }
 
   return true;
@@ -349,17 +349,17 @@ function configureAccessMethodSwitches(hub: AccessHub): boolean {
 function configureDoorbell(hub: AccessHub): boolean {
 
   // Validate whether we should have this service enabled.
-  if(!validService(hub.accessory, hub.hap.Service.Doorbell, hasCapability(hub, "door_bell") && hub.hasFeature("Hub.Doorbell"))) {
+  if(!validService(hub.accessory, hub.hap.Service.Doorbell, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell'))) {
 
     return false;
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.Doorbell, hub.accessoryName, undefined, () => hub.log.info("Enabling the doorbell."));
+  const service = acquireService(hub.accessory, hub.hap.Service.Doorbell, hub.accessoryName, undefined, () => hub.log.info('Enabling the doorbell.'));
 
   if(!service) {
 
-    hub.log.error("Unable to add the doorbell.");
+    hub.log.error('Unable to add the doorbell.');
 
     return false;
   }
@@ -373,19 +373,19 @@ function configureDoorbell(hub: AccessHub): boolean {
 function configureDoorbellTrigger(hub: AccessHub): boolean {
 
   // Validate whether we should have this service enabled.
-  if(!validService(hub.accessory, hub.hap.Service.Switch, hasCapability(hub, "door_bell") && hub.hasFeature("Hub.Doorbell.Trigger"),
+  if(!validService(hub.accessory, hub.hap.Service.Switch, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell.Trigger'),
     AccessReservedNames.SWITCH_DOORBELL_TRIGGER)) {
 
     return false;
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + " Doorbell Trigger",
-    AccessReservedNames.SWITCH_DOORBELL_TRIGGER, () => hub.log.info("Enabling the doorbell automation trigger."));
+  const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + ' Doorbell Trigger',
+    AccessReservedNames.SWITCH_DOORBELL_TRIGGER, () => hub.log.info('Enabling the doorbell automation trigger.'));
 
   if(!service) {
 
-    hub.log.error("Unable to add the doorbell automation trigger.");
+    hub.log.error('Unable to add the doorbell automation trigger.');
 
     return false;
   }
@@ -400,7 +400,7 @@ function configureDoorbellTrigger(hub: AccessHub): boolean {
   });
 
   // Initialize the switch.
-  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName + " Doorbell Trigger");
+  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName + ' Doorbell Trigger');
   service.updateCharacteristic(hub.hap.Characteristic.On, false);
 
   return true;
@@ -411,15 +411,15 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
 
   for(const { input, label } of terminalInputs) {
 
-    const hint = ("hasWiring" + input) as HasWiringHintKey;
-    const reservedId = AccessReservedNames[("CONTACT_" + input.toUpperCase()) as keyof typeof AccessReservedNames];
+    const hint = ('hasWiring' + input) as HasWiringHintKey;
+    const reservedId = AccessReservedNames[('CONTACT_' + input.toUpperCase()) as keyof typeof AccessReservedNames];
 
     // Validate whether we should have this service enabled.
     if(!validService(hub.accessory, hub.hap.Service.ContactSensor, (hasService: boolean) => {
 
       if(!hub.hints[hint] && hasService) {
 
-        hub.log.info("Disabling the " + label.toLowerCase() + ".");
+        hub.log.info('Disabling the ' + label.toLowerCase() + '.');
       }
 
       return hub.hints[hint];
@@ -429,12 +429,12 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
     }
 
     // Acquire the service.
-    const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + " " + label, reservedId,
-      () => hub.log.info("Enabling the " + label.toLowerCase() + "."));
+    const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' ' + label, reservedId,
+      () => hub.log.info('Enabling the ' + label.toLowerCase() + '.'));
 
     if(!service) {
 
-      hub.log.error("Unable to add the " + label.toLowerCase() + ".");
+      hub.log.error('Unable to add the ' + label.toLowerCase() + '.');
 
       continue;
     }
@@ -462,7 +462,7 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
 
     if(!hub.hints.hasWiringSideDoorDps && hasService) {
 
-      hub.log.info("Disabling the side door position sensor.");
+      hub.log.info('Disabling the side door position sensor.');
     }
 
     return hub.hints.hasWiringSideDoorDps;
@@ -472,12 +472,12 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + " Side Door Position Sensor",
-    AccessReservedNames.CONTACT_DPS_SIDE, () => hub.log.info("Enabling the side door position sensor."));
+  const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' Side Door Position Sensor',
+    AccessReservedNames.CONTACT_DPS_SIDE, () => hub.log.info('Enabling the side door position sensor.'));
 
   if(!service) {
 
-    hub.log.error("Unable to add the side door position sensor.");
+    hub.log.error('Unable to add the side door position sensor.');
 
     return false;
   }
@@ -497,7 +497,7 @@ function configureLock(hub: AccessHub): boolean {
 
   // First, remove any previous service types that are no longer selected.
   const serviceTypes = [ hub.hap.Service.LockMechanism, hub.hap.Service.GarageDoorOpener ];
-  const selectedService = currentServiceType === "GarageDoorOpener" ? hub.hap.Service.GarageDoorOpener : hub.hap.Service.LockMechanism;
+  const selectedService = currentServiceType === 'GarageDoorOpener' ? hub.hap.Service.GarageDoorOpener : hub.hap.Service.LockMechanism;
 
   for(const serviceType of serviceTypes) {
 
@@ -513,24 +513,24 @@ function configureLock(hub: AccessHub): boolean {
   }
 
   // Validate whether we should have this service enabled.
-  if(!validService(hub.accessory, selectedService, hasCapability(hub, "is_hub"))) {
+  if(!validService(hub.accessory, selectedService, hasCapability(hub, 'is_hub'))) {
 
     return false;
   }
 
   // Acquire the service.
   const service = acquireService(hub.accessory, selectedService, hub.accessoryName, undefined,
-    () => hub.log.info("Configuring door as %s service.", currentServiceType));
+    () => hub.log.info('Configuring door as %s service.', currentServiceType));
 
   if(!service) {
 
-    hub.log.error("Unable to add the door.");
+    hub.log.error('Unable to add the door.');
 
     return false;
   }
 
   // Configure based on service type.
-  if(currentServiceType === "GarageDoorOpener") {
+  if(currentServiceType === 'GarageDoorOpener') {
 
     configureGarageDoorService(hub, service, false);
   } else {
@@ -578,8 +578,10 @@ function configureLockService(hub: AccessHub, service: ReturnType<typeof acquire
 
     if(!(await lockCommand(targetLocked))) {
 
-      setTimeout(() => service.updateCharacteristic(hub.hap.Characteristic.LockTargetState,
-        currentlyLocked ? hub.hap.Characteristic.LockTargetState.SECURED : hub.hap.Characteristic.LockTargetState.UNSECURED), HK_CHARACTERISTIC_REVERT_DELAY_MS);
+      const revertState = currentlyLocked
+        ? hub.hap.Characteristic.LockTargetState.SECURED : hub.hap.Characteristic.LockTargetState.UNSECURED;
+
+      setTimeout(() => service.updateCharacteristic(hub.hap.Characteristic.LockTargetState, revertState), HK_CHARACTERISTIC_REVERT_DELAY_MS);
     }
 
     service.updateCharacteristic(hub.hap.Characteristic.LockCurrentState, lockStateGetter());
@@ -605,12 +607,12 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
       // Return the current gate cycle phase state.
       if(!isSideDoor && hub.gateDirection && (Date.now() < hub.gateDirectionUntil)) {
 
-        if(hub.gateDirection === "opening") {
+        if(hub.gateDirection === 'opening') {
 
           return hub.hap.Characteristic.CurrentDoorState.OPENING;
         }
 
-        if(hub.gateDirection === "open") {
+        if(hub.gateDirection === 'open') {
 
           return hub.hap.Characteristic.CurrentDoorState.OPEN;
         }
@@ -655,7 +657,7 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
         if(shouldClose) {
 
           hub.clearGatePhaseTimers();
-          hub.gateDirection = "closing";
+          hub.gateDirection = 'closing';
           hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
           service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSING);
         } else {
@@ -713,11 +715,11 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
 function configureLockTrigger(hub: AccessHub, isSideDoor: boolean): boolean {
 
   const condition = isSideDoor
-    ? hub.hints.hasSideDoor && hub.hasFeature("Hub.SideDoor.Lock.Trigger")
-    : hasCapability(hub, "is_hub") && hub.hasFeature("Hub.Lock.Trigger");
+    ? hub.hints.hasSideDoor && hub.hasFeature('Hub.SideDoor.Lock.Trigger')
+    : hasCapability(hub, 'is_hub') && hub.hasFeature('Hub.Lock.Trigger');
   const subtype = isSideDoor ? AccessReservedNames.SWITCH_LOCK_DOOR_SIDE_TRIGGER : AccessReservedNames.SWITCH_LOCK_TRIGGER;
-  const label = isSideDoor ? "Side Door Lock Trigger" : "Lock Trigger";
-  const logLabel = isSideDoor ? "side door lock automation trigger" : "lock automation trigger";
+  const label = isSideDoor ? 'Side Door Lock Trigger' : 'Lock Trigger';
+  const logLabel = isSideDoor ? 'side door lock automation trigger' : 'lock automation trigger';
 
   // Validate whether we should have this service enabled.
   if(!validService(hub.accessory, hub.hap.Service.Switch, condition, subtype)) {
@@ -726,12 +728,12 @@ function configureLockTrigger(hub: AccessHub, isSideDoor: boolean): boolean {
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + " " + label, subtype,
-    () => hub.log.info("Enabling the %s.", logLabel));
+  const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + ' ' + label, subtype,
+    () => hub.log.info('Enabling the %s.', logLabel));
 
   if(!service) {
 
-    hub.log.error("Unable to add the %s.", logLabel);
+    hub.log.error('Unable to add the %s.', logLabel);
 
     return false;
   }
@@ -752,7 +754,7 @@ function configureLockTrigger(hub: AccessHub, isSideDoor: boolean): boolean {
   });
 
   // Initialize the switch.
-  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName + " " + label);
+  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName + ' ' + label);
   service.updateCharacteristic(hub.hap.Characteristic.On, false);
 
   return true;
@@ -768,12 +770,12 @@ function configureSideDoorLock(hub: AccessHub): boolean {
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.LockMechanism, hub.accessoryName + " Side Door", AccessReservedNames.LOCK_DOOR_SIDE,
-    () => hub.log.info("Configuring %s lock.", hub.sideDoorName ?? "side door"));
+  const service = acquireService(hub.accessory, hub.hap.Service.LockMechanism, hub.accessoryName + ' Side Door', AccessReservedNames.LOCK_DOOR_SIDE,
+    () => hub.log.info('Configuring %s lock.', hub.sideDoorName ?? 'side door'));
 
   if(!service) {
 
-    hub.log.error("Unable to add the side door.");
+    hub.log.error('Unable to add the side door.');
 
     return false;
   }
@@ -783,8 +785,8 @@ function configureSideDoorLock(hub: AccessHub): boolean {
 
   // Initialize the lock.
   hub._hkSideDoorLockState = -1;
-  service.displayName = hub.accessoryName + " Side Door";
-  service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName + " Side Door");
+  service.displayName = hub.accessoryName + ' Side Door';
+  service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName + ' Side Door');
   hub.hkSideDoorLockState = hubLockState(hub, true);
 
   return true;
@@ -793,16 +795,16 @@ function configureSideDoorLock(hub: AccessHub): boolean {
 // Configure tamper detection on a contact sensor service if the hub supports it.
 function configureTamperDetection(hub: AccessHub, service: ReturnType<typeof acquireService>): void {
 
-  if(!service || !hasCapability(hub, "tamper_proofing")) {
+  if(!service || !hasCapability(hub, 'tamper_proofing')) {
 
     return;
   }
 
-  const tamperedEntry = getConfigValue(hub.uda.configs, "tamper_event");
+  const tamperedEntry = getConfigValue(hub.uda.configs, 'tamper_event');
 
   if(tamperedEntry) {
 
-    service.updateCharacteristic(hub.hap.Characteristic.StatusTampered, (tamperedEntry === "true") ? hub.hap.Characteristic.StatusTampered.TAMPERED :
+    service.updateCharacteristic(hub.hap.Characteristic.StatusTampered, (tamperedEntry === 'true') ? hub.hap.Characteristic.StatusTampered.TAMPERED :
       hub.hap.Characteristic.StatusTampered.NOT_TAMPERED);
   }
 }
@@ -818,9 +820,9 @@ export function updateSideDoorServiceNames(hub: AccessHub): void {
   const name = sanitizeName(hub.sideDoorName);
 
   const sideDoorServices: { subtype: AccessReservedNames; suffix: string }[] = [
-    { subtype: AccessReservedNames.LOCK_DOOR_SIDE, suffix: "" },
-    { subtype: AccessReservedNames.CONTACT_DPS_SIDE, suffix: " Door Position Sensor" },
-    { subtype: AccessReservedNames.SWITCH_LOCK_DOOR_SIDE_TRIGGER, suffix: " Lock Trigger" }
+    { subtype: AccessReservedNames.LOCK_DOOR_SIDE, suffix: '' },
+    { subtype: AccessReservedNames.CONTACT_DPS_SIDE, suffix: ' Door Position Sensor' },
+    { subtype: AccessReservedNames.SWITCH_LOCK_DOOR_SIDE_TRIGGER, suffix: ' Lock Trigger' },
   ];
 
   for(const { subtype, suffix } of sideDoorServices) {

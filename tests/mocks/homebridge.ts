@@ -1,14 +1,14 @@
 /* Mock homebridge objects for testing. */
-import { vi } from "vitest";
+import { vi } from 'vitest';
 
 // Mock Characteristic values that mirror HAP's enum values.
 export const MockCharacteristic = {
 
-  ConfiguredName: "ConfiguredName",
+  ConfiguredName: 'ConfiguredName',
 
   ContactSensorState: {
     CONTACT_DETECTED: 0,
-    CONTACT_NOT_DETECTED: 1
+    CONTACT_NOT_DETECTED: 1,
   },
 
   CurrentDoorState: {
@@ -16,60 +16,60 @@ export const MockCharacteristic = {
     CLOSING: 3,
     OPEN: 0,
     OPENING: 2,
-    STOPPED: 4
+    STOPPED: 4,
   },
 
-  FirmwareRevision: "FirmwareRevision",
+  FirmwareRevision: 'FirmwareRevision',
 
   LockCurrentState: {
     JAMMED: 2,
     SECURED: 1,
     UNKNOWN: 3,
-    UNSECURED: 0
+    UNSECURED: 0,
   },
 
   LockTargetState: {
     SECURED: 1,
-    UNSECURED: 0
+    UNSECURED: 0,
   },
 
-  Manufacturer: "Manufacturer",
-  Model: "Model",
-  MotionDetected: "MotionDetected",
-  Name: "Name",
-  OccupancyDetected: "OccupancyDetected",
-  ObstructionDetected: "ObstructionDetected",
-  On: "On",
+  Manufacturer: 'Manufacturer',
+  Model: 'Model',
+  MotionDetected: 'MotionDetected',
+  Name: 'Name',
+  OccupancyDetected: 'OccupancyDetected',
+  ObstructionDetected: 'ObstructionDetected',
+  On: 'On',
 
   ProgrammableSwitchEvent: {
-    SINGLE_PRESS: 0
+    SINGLE_PRESS: 0,
   },
 
-  SerialNumber: "SerialNumber",
-  StatusActive: "StatusActive",
+  SerialNumber: 'SerialNumber',
+  StatusActive: 'StatusActive',
 
   StatusTampered: {
     NOT_TAMPERED: 0,
-    TAMPERED: 1
+    TAMPERED: 1,
   },
 
   TargetDoorState: {
     CLOSED: 1,
-    OPEN: 0
-  }
+    OPEN: 0,
+  },
 };
 
 // Mock Service types.
 export const MockService = {
 
-  AccessoryInformation: "AccessoryInformation",
-  ContactSensor: "ContactSensor",
-  Doorbell: "Doorbell",
-  GarageDoorOpener: "GarageDoorOpener",
-  LockMechanism: "LockMechanism",
-  MotionSensor: "MotionSensor",
-  OccupancySensor: "OccupancySensor",
-  Switch: "Switch"
+  AccessoryInformation: 'AccessoryInformation',
+  ContactSensor: 'ContactSensor',
+  Doorbell: 'Doorbell',
+  GarageDoorOpener: 'GarageDoorOpener',
+  LockMechanism: 'LockMechanism',
+  MotionSensor: 'MotionSensor',
+  OccupancySensor: 'OccupancySensor',
+  Switch: 'Switch',
 };
 
 // Mock HAP object.
@@ -77,7 +77,7 @@ export const createMockHAP = () => ({
 
   Characteristic: MockCharacteristic,
   Service: MockService,
-  uuid: { generate: (input: string) => "uuid-" + input }
+  uuid: { generate: (input: string) => 'uuid-' + input },
 });
 
 // Create a mock characteristic with get/set/onGet/onSet.
@@ -87,7 +87,7 @@ export function createMockCharacteristic(initialValue: unknown = null) {
     onGet: vi.fn().mockReturnThis(),
     onSet: vi.fn().mockReturnThis(),
     updateValue: vi.fn(),
-    value: initialValue
+    value: initialValue,
   };
 }
 
@@ -99,7 +99,7 @@ export function createMockService(serviceType: string, subtype?: string) {
   const service = {
     UUID: serviceType,
     addOptionalCharacteristic: vi.fn(),
-    displayName: "",
+    displayName: '',
     getCharacteristic: vi.fn((charType: string) => {
 
       if(!characteristics.has(charType)) {
@@ -121,14 +121,14 @@ export function createMockService(serviceType: string, subtype?: string) {
       characteristics.get(charType)!.value = value;
 
       return service;
-    })
+    }),
   };
 
   return service;
 }
 
 // Create a mock PlatformAccessory.
-export function createMockAccessory(uuid = "test-uuid") {
+export function createMockAccessory(uuid = 'test-uuid') {
 
   const services = new Map<string, ReturnType<typeof createMockService>>();
 
@@ -139,7 +139,7 @@ export function createMockAccessory(uuid = "test-uuid") {
 
     UUID: uuid,
 
-    _associatedHAPAccessory: { displayName: "" },
+    _associatedHAPAccessory: { displayName: '' },
 
     addService: vi.fn((service: ReturnType<typeof createMockService>) => {
 
@@ -148,20 +148,20 @@ export function createMockAccessory(uuid = "test-uuid") {
 
     context: {} as Record<string, unknown>,
 
-    displayName: "Test Accessory",
+    displayName: 'Test Accessory',
 
     getService: vi.fn((serviceType: string) => services.get(serviceType)),
 
     getServiceById: vi.fn((serviceType: string, subtype: string) => {
 
-      const key = serviceType + "." + subtype;
+      const key = serviceType + '.' + subtype;
 
       return services.get(key);
     }),
 
     removeService: vi.fn(),
 
-    services: Array.from(services.values())
+    services: Array.from(services.values()),
   };
 
   return accessory;
@@ -182,6 +182,6 @@ export function createMockAPI() {
 
     registerPlatformAccessories: vi.fn(),
     unregisterPlatformAccessories: vi.fn(),
-    updatePlatformAccessories: vi.fn()
+    updatePlatformAccessories: vi.fn(),
   };
 }

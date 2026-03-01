@@ -2,28 +2,29 @@
  *
  * access-hub.ts: Core hub class for UniFi Access. State management, construction, orchestration, and static property definitions.
  */
-import { EventEmitter } from "events";
-import type { AccessDeviceConfig } from "unifi-access";
-import type { CharacteristicValue, PlatformAccessory } from "homebridge";
-import { type DeviceCatalogEntry, type SensorInput, getDeviceCatalog } from "../access-device-catalog.js";
-import type { AccessController } from "../access-controller.js";
-import { AccessDevice } from "../access-device.js";
-import { AccessReservedNames } from "../access-types.js";
-import { ACCESS_GATE_DIRECTION_DURATION } from "../settings.js";
-import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs } from "./access-hub-types.js";
-import { discoverDoorNames, initializeDoorsFromApi } from "./access-hub-api.js";
-import { registerEventHandlers } from "./access-hub-events.js";
-import { configureMqtt } from "./access-hub-mqtt.js";
-import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from "./access-hub-services.js";
+import { EventEmitter } from 'events';
+import type { AccessDeviceConfig } from 'unifi-access';
+import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
+import { type DeviceCatalogEntry, type SensorInput, getDeviceCatalog } from '../access-device-catalog.js';
+import type { AccessController } from '../access-controller.js';
+import { AccessDevice } from '../access-device.js';
+import { AccessReservedNames } from '../access-types.js';
+import { ACCESS_GATE_DIRECTION_DURATION } from '../settings.js';
+import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs } from './access-hub-types.js';
+import { discoverDoorNames, initializeDoorsFromApi } from './access-hub-api.js';
+import { registerEventHandlers } from './access-hub-events.js';
+import { configureMqtt } from './access-hub-mqtt.js';
+import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
-  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, setContactSensorState
-} from "./access-hub-utils.js";
+  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, setContactSensorState,
+} from './access-hub-utils.js';
 
 // Merge the declarations into the definition of the class, so TypeScript knows that these properties will exist.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export interface AccessHub extends AccessHubHKProps, AccessHubWiredProps { }
 
 // Key-union types that reference AccessHub must stay here due to the circular dependency with the class definition.
-export type HkStateKey = KeyOf<AccessHub, "hk", "State">;
+export type HkStateKey = KeyOf<AccessHub, 'hk', 'State'>;
 
 // Typed event emitter wrapper for the hub event bus.
 class HubEventBus {
@@ -33,7 +34,7 @@ class HubEventBus {
 
   emit<K extends HubEventKey>(event: K, data: HubEventMap[K]): void {
 
-    this.logger?.("Event bus: %s %s.", event, JSON.stringify(data));
+    this.logger?.('Event bus: %s %s.', event, JSON.stringify(data));
     this.emitter.emit(event, data);
   }
 
@@ -48,6 +49,7 @@ class HubEventBus {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class AccessHub extends AccessDevice {
 
   // State backing fields - public for module access.
@@ -59,7 +61,7 @@ export class AccessHub extends AccessDevice {
   // Device configuration - public for module access.
   public readonly catalog: DeviceCatalogEntry;
   public doorbellRingRequestId: string | null;
-  public gateDirection: "opening" | "open" | "closing" | null;
+  public gateDirection: 'opening' | 'open' | 'closing' | null;
   public gateDirectionDuration: number;
   public gateDirectionUntil: number;
   public gatePhaseTimers: ReturnType<typeof setTimeout>[];
@@ -82,19 +84,19 @@ export class AccessHub extends AccessDevice {
 
     this.hubEvents.setLogger(this.log.debug.bind(this.log));
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    this.catalog = getDeviceCatalog(device.device_type) ?? getDeviceCatalog("UAH")!;
+     
+    this.catalog = getDeviceCatalog(device.device_type) ?? getDeviceCatalog('UAH')!;
     this.uda = device;
     this._hkDpsState = hubDpsState(this);
     this._hkLockState = hubLockState(this);
     this._hkSideDoorDpsState = hubDpsState(this, true);
     this._hkSideDoorLockState = hubLockState(this, true);
     this.gateDirection = null;
-    this.gateDirectionDuration = ((this.getFeatureNumber("Hub.GateDirectionDuration") ?? ACCESS_GATE_DIRECTION_DURATION) * 1000);
+    this.gateDirectionDuration = ((this.getFeatureNumber('Hub.GateDirectionDuration') ?? ACCESS_GATE_DIRECTION_DURATION) * 1000);
     this.gateDirectionUntil = 0;
     this.gatePhaseTimers = [];
     this.gateTransitionUntil = 0;
-    this.lockDelayInterval = this.getFeatureNumber("Hub.LockDelayInterval") ?? undefined;
+    this.lockDelayInterval = this.getFeatureNumber('Hub.LockDelayInterval') ?? undefined;
     this.mainDoorLocationId = undefined;
     this.mainDoorName = undefined;
     this.sideDoorLocationId = undefined;
@@ -118,18 +120,18 @@ export class AccessHub extends AccessDevice {
     // Configure our parent's hints.
     super.configureHints();
 
-    this.hints.hasSideDoor = this.catalog.supportsSideDoor && this.hasFeature("Hub.SideDoor");
-    this.hints.hasWiringDps = this.catalog.hasDps && this.hasFeature("Hub.DPS");
-    this.hints.hasWiringRel = this.catalog.hasRel && this.hasFeature("Hub.REL");
-    this.hints.hasWiringRen = this.catalog.hasRen && this.hasFeature("Hub.REN");
-    this.hints.hasWiringRex = this.catalog.hasRex && this.hasFeature("Hub.REX");
-    this.hints.hasWiringSideDoorDps = this.hints.hasSideDoor && this.hasFeature("Hub.SideDoor.DPS");
-    this.hints.logDoorbell = this.hasFeature("Log.Doorbell");
-    this.hints.logDps = this.hasFeature("Log.DPS");
-    this.hints.logLock = this.hasFeature("Log.Lock");
-    this.hints.logRel = this.hasFeature("Log.REL");
-    this.hints.logRen = this.hasFeature("Log.REN");
-    this.hints.logRex = this.hasFeature("Log.REX");
+    this.hints.hasSideDoor = this.catalog.supportsSideDoor && this.hasFeature('Hub.SideDoor');
+    this.hints.hasWiringDps = this.catalog.hasDps && this.hasFeature('Hub.DPS');
+    this.hints.hasWiringRel = this.catalog.hasRel && this.hasFeature('Hub.REL');
+    this.hints.hasWiringRen = this.catalog.hasRen && this.hasFeature('Hub.REN');
+    this.hints.hasWiringRex = this.catalog.hasRex && this.hasFeature('Hub.REX');
+    this.hints.hasWiringSideDoorDps = this.hints.hasSideDoor && this.hasFeature('Hub.SideDoor.DPS');
+    this.hints.logDoorbell = this.hasFeature('Log.Doorbell');
+    this.hints.logDps = this.hasFeature('Log.DPS');
+    this.hints.logLock = this.hasFeature('Log.Lock');
+    this.hints.logRel = this.hasFeature('Log.REL');
+    this.hints.logRen = this.hasFeature('Log.REN');
+    this.hints.logRex = this.hasFeature('Log.REX');
 
     // Proxy mode devices have a single terminal input that's selectable between DPS and REX modes.
     if(this.catalog.usesProxyMode) {
@@ -193,11 +195,11 @@ export class AccessHub extends AccessDevice {
       discoverDoorNames(this);
     }
 
-    logLockDelayInterval(this, this.mainDoorName ?? "door");
+    logLockDelayInterval(this, this.mainDoorName ?? 'door');
 
     if(this.hints.hasSideDoor) {
 
-      logLockDelayInterval(this, this.sideDoorName ?? "side door");
+      logLockDelayInterval(this, this.sideDoorName ?? 'side door');
     }
 
     // Configure accessory information.
@@ -245,21 +247,21 @@ export class AccessHub extends AccessDevice {
     // Suppress contradictory DPS events during gate movement (e.g. sensor bounce as the gate moves past).
     if(this.gateDirection && (Date.now() < this.gateDirectionUntil)) {
 
-      if((this.gateDirection === "opening" && isClosed) || (this.gateDirection === "closing" && !isClosed)) {
+      if((this.gateDirection === 'opening' && isClosed) || (this.gateDirection === 'closing' && !isClosed)) {
 
-        this.log.debug("Gate DPS bounce suppressed: %s during %s phase.", isClosed ? "close" : "open", this.gateDirection);
+        this.log.debug('Gate DPS bounce suppressed: %s during %s phase.', isClosed ? 'close' : 'open', this.gateDirection);
 
         return;
       }
     }
 
-    // Detect gate closing: DPS transitions from open to close during the "open" phase (gate closing earlier than the timer predicted) or after the direction window
-    // expires (self-closing with no active cycle). Cancel any pending phase timers and set closing direction to suppress bounce and push transitional state.
-    if(this.catalog.usesLocationApi && isClosed && (this._hkDpsState !== value) && (this.gateDirection === "open" || (Date.now() >= this.gateDirectionUntil))) {
+    // Detect gate closing: DPS transitions from open to close during the "open" phase (gate closing earlier than the timer predicted) or after the
+    // direction window expires (self-closing with no active cycle). Cancel phase timers and set closing direction to suppress bounce.
+    if(this.catalog.usesLocationApi && isClosed && (this._hkDpsState !== value) && (this.gateDirection === 'open' || (Date.now() >= this.gateDirectionUntil))) {
 
-      this.log.debug("Gate closing detected during %s phase — transitioning to Closing.", this.gateDirection ?? "idle");
+      this.log.debug('Gate closing detected during %s phase — transitioning to Closing.', this.gateDirection ?? 'idle');
       this.clearGatePhaseTimers();
-      this.gateDirection = "closing";
+      this.gateDirection = 'closing';
       this.gateDirectionUntil = Date.now() + (this.gateDirectionDuration / 3);
 
       const gdoService = this.accessory.getService(this.hap.Service.GarageDoorOpener);
@@ -275,8 +277,8 @@ export class AccessHub extends AccessDevice {
     setContactSensorState(this, AccessReservedNames.CONTACT_DPS, value);
 
     // Emit events for DPS and sensor changes.
-    this.hubEvents.emit("dps:changed", { isSideDoor: false, value });
-    this.hubEvents.emit("sensor:changed", { input: "Dps" as SensorInput, value });
+    this.hubEvents.emit('dps:changed', { isSideDoor: false, value });
+    this.hubEvents.emit('sensor:changed', { input: 'Dps' as SensorInput, value });
   }
 
   // HomeKit lock state property accessor.
@@ -292,7 +294,7 @@ export class AccessHub extends AccessDevice {
     this._hkLockState = value;
 
     // Emit the lock:changed event - service reactions and MQTT will handle the rest.
-    this.hubEvents.emit("lock:changed", { isSideDoor: false, value });
+    this.hubEvents.emit('lock:changed', { isSideDoor: false, value });
   }
 
   // HomeKit side door lock state property accessor.
@@ -308,7 +310,7 @@ export class AccessHub extends AccessDevice {
     this._hkSideDoorLockState = value;
 
     // Emit the lock:changed event - service reactions and MQTT will handle the rest.
-    this.hubEvents.emit("lock:changed", { isSideDoor: true, value });
+    this.hubEvents.emit('lock:changed', { isSideDoor: true, value });
   }
 
   // We dynamically define our getters and setters for terminal inputs so we can streamline redundancies.
@@ -317,24 +319,24 @@ export class AccessHub extends AccessDevice {
     // Define wiring getters for all sensor inputs.
     for(const input of sensorInputs) {
 
-      Object.defineProperty(AccessHub.prototype, "is" + input + "Wired", {
+      Object.defineProperty(AccessHub.prototype, 'is' + input + 'Wired', {
 
         configurable: true,
         enumerable: true,
         get(this: AccessHub) {
 
           return isWired(this, input);
-        }
+        },
       });
     }
 
-    // Define hk*State getters and setters. We skip DPS since we implement it with a manual getter/setter that provides fallback behavior when the DPS contact sensor
-    // is disabled.
-    for(const input of sensorInputs.filter(i => i !== "Dps")) {
+    // Define hk*State getters and setters. We skip DPS since we implement it with a manual getter/setter that provides fallback behavior when the
+    // DPS contact sensor is disabled.
+    for(const input of sensorInputs.filter(i => i !== 'Dps')) {
 
-      const enumKey = "CONTACT_" + input.toUpperCase();
+      const enumKey = 'CONTACT_' + input.toUpperCase();
 
-      Object.defineProperty(AccessHub.prototype, "hk" + input + "State", {
+      Object.defineProperty(AccessHub.prototype, 'hk' + input + 'State', {
 
         configurable: true,
         enumerable: true,
@@ -348,8 +350,8 @@ export class AccessHub extends AccessDevice {
           setContactSensorState(this, AccessReservedNames[enumKey as keyof typeof AccessReservedNames], value);
 
           // Emit sensor:changed event for MQTT and logging.
-          this.hubEvents.emit("sensor:changed", { input: input as SensorInput, value });
-        }
+          this.hubEvents.emit('sensor:changed', { input: input as SensorInput, value });
+        },
       });
     }
   }

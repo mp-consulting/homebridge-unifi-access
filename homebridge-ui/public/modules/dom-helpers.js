@@ -1,4 +1,4 @@
-import { SCREENS } from "./constants.js";
+import { SCREENS } from './constants.js';
 
 export const $ = (id) => document.getElementById(id);
 
@@ -8,11 +8,11 @@ export const showScreen = (screenId) => {
   SCREENS.forEach((id) => {
 
 
-    $(id).style.display = id === screenId ? "block" : "none";
+    $(id).style.display = id === screenId ? 'block' : 'none';
   });
 };
 
-export const setButtonLoading = (btn, loading, loadingText = "Loading...") => {
+export const setButtonLoading = (btn, loading, loadingText = 'Loading...') => {
 
 
   if(loading) {
@@ -20,7 +20,7 @@ export const setButtonLoading = (btn, loading, loadingText = "Loading...") => {
 
     btn.dataset.originalContent = btn.innerHTML;
     btn.disabled = true;
-    /* eslint-disable-next-line no-restricted-syntax */
+     
     btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${loadingText}`;
   } else {
 
@@ -33,7 +33,7 @@ export const setButtonLoading = (btn, loading, loadingText = "Loading...") => {
 export const escapeHtml = (str) => {
 
 
-  const div = document.createElement("div");
+  const div = document.createElement('div');
 
   div.textContent = str;
 
@@ -51,10 +51,10 @@ export const el = (tag, attrs, ...children) => {
     for(const [ key, value ] of Object.entries(attrs)) {
 
 
-      if(key === "className") {
+      if(key === 'className') {
 
         element.className = value;
-      } else if(key.startsWith("on")) {
+      } else if(key.startsWith('on')) {
 
         element.addEventListener(key.slice(2).toLowerCase(), value);
       } else {
@@ -67,7 +67,7 @@ export const el = (tag, attrs, ...children) => {
   for(const child of children) {
 
 
-    if(typeof child === "string") {
+    if(typeof child === 'string') {
 
       element.appendChild(document.createTextNode(child));
     } else if(child) {

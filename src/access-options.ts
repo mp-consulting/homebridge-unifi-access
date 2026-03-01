@@ -2,9 +2,9 @@
  *
  * access-options.ts: Feature option and type definitions for UniFi Access.
  */
-import { ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, ACCESS_DEVICE_UNLOCK_INTERVAL, ACCESS_GATE_DIRECTION_DURATION } from "./settings.js";
-import { modelsDefaultGarageDoor, modelsDefaultLock, modelsDps, modelsRel, modelsRen, modelsRex, modelsSideDoor } from "./access-device-catalog.js";
-import type { FeatureOptionEntry } from "homebridge-plugin-utils";
+import { ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, ACCESS_DEVICE_UNLOCK_INTERVAL, ACCESS_GATE_DIRECTION_DURATION } from './settings.js';
+import { modelsDefaultGarageDoor, modelsDefaultLock, modelsDps, modelsRel, modelsRen, modelsRex, modelsSideDoor } from './access-device-catalog.js';
+import type { FeatureOptionEntry } from 'homebridge-plugin-utils';
 
 // Plugin configuration options.
 export interface AccessOptions {
@@ -38,71 +38,69 @@ interface AccessFeatureOption extends FeatureOptionEntry {
 // Feature option categories.
 export const featureOptionCategories = [
 
-  { description: "Device feature options.", modelKey: ["all"], name: "Device" },
-  { description: "Controller feature options.", modelKey: ["controller"], name: "Controller" },
-  { description: "Hub feature options.", hasCapability: ["is_hub"], modelKey: ["all"], name: "Hub" },
-  { description: "Access method feature options.", hasCapability: ["is_reader"], modelKey: ["all"], name: "AccessMethod" },
-  { description: "Logging feature options.", modelKey: ["all"], name: "Log" }
+  { description: 'Device feature options.', modelKey: ['all'], name: 'Device' },
+  { description: 'Controller feature options.', modelKey: ['controller'], name: 'Controller' },
+  { description: 'Hub feature options.', hasCapability: ['is_hub'], modelKey: ['all'], name: 'Hub' },
+  { description: 'Access method feature options.', hasCapability: ['is_reader'], modelKey: ['all'], name: 'AccessMethod' },
+  { description: 'Logging feature options.', modelKey: ['all'], name: 'Log' },
 ];
 
-/* eslint-disable @stylistic/max-len */
 // Individual feature options, broken out by category.
 export const featureOptions: Record<string, AccessFeatureOption[]> = {
 
   // Access method options.
-  "AccessMethod": [
+  'AccessMethod': [
 
-    { default: true, description: "Add a switch accessory to control the face unlock access method.", hasCapability: ["identity_face_unlock"], name: "Face" },
-    { default: true, description: "Add a switch accessory to control the hand wave unlock access method.", hasCapability: ["hand_wave"], name: "Hand" },
-    { default: true, description: "Add a switch accessory to control the mobile unlock access method.", hasCapability: [ "mobile_unlock_ver2", "support_mobile_unlock" ], name: "Mobile" },
-    { default: true, description: "Add a switch accessory to control the NFC card access method.", hasCapability: ["nfc_card_easy_provision"], name: "NFC" },
-    { default: true, description: "Add a switch accessory to control the PIN unlock access method.", hasCapability: ["pin_code"], name: "PIN" },
-    { default: true, description: "Add a switch accessory to control the QR unlock access method.", hasCapability: ["qr_code"], name: "QR" },
-    { default: true, description: "Add a switch accessory to control the Touch Pass access method.", hasCapability: ["support_apple_pass"], name: "TouchPass" }
+    { default: true, description: 'Add a switch accessory to control the face unlock access method.', hasCapability: ['identity_face_unlock'], name: 'Face' },
+    { default: true, description: 'Add a switch accessory to control the hand wave unlock access method.', hasCapability: ['hand_wave'], name: 'Hand' },
+    { default: true, description: 'Add a switch accessory to control the mobile unlock access method.', hasCapability: [ 'mobile_unlock_ver2', 'support_mobile_unlock' ], name: 'Mobile' },
+    { default: true, description: 'Add a switch accessory to control the NFC card access method.', hasCapability: ['nfc_card_easy_provision'], name: 'NFC' },
+    { default: true, description: 'Add a switch accessory to control the PIN unlock access method.', hasCapability: ['pin_code'], name: 'PIN' },
+    { default: true, description: 'Add a switch accessory to control the QR unlock access method.', hasCapability: ['qr_code'], name: 'QR' },
+    { default: true, description: 'Add a switch accessory to control the Touch Pass access method.', hasCapability: ['support_apple_pass'], name: 'TouchPass' },
   ],
 
   // Controller options.
-  "Controller": [
+  'Controller': [
 
-    { default: true, defaultValue: ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, description: "Delay, in seconds, before removing devices that are no longer detected on the Access controller. By default, devices are added and removed in realtime.", name: "DelayDeviceRemoval" },
-    { default: false, description: "Publish all the realtime telemetry received from the Access controller to MQTT.", name: "Publish.Telemetry" }
+    { default: true, defaultValue: ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, description: 'Delay, in seconds, before removing devices that are no longer detected on the Access controller. By default, devices are added and removed in realtime.', name: 'DelayDeviceRemoval' },
+    { default: false, description: 'Publish all the realtime telemetry received from the Access controller to MQTT.', name: 'Publish.Telemetry' },
   ],
 
   // Device options.
-  "Device": [
+  'Device': [
 
-    { default: true, description: "Make this device available in HomeKit.", name: "" },
-    { default: true, description: "Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit.", name: "SyncName" }
+    { default: true, description: 'Make this device available in HomeKit.', name: '' },
+    { default: true, description: 'Synchronize the UniFi Access name of this device with HomeKit. Synchronization is one-way only, syncing the device name from UniFi Access to HomeKit.', name: 'SyncName' },
   ],
 
   // Hub options.
-  "Hub": [
+  'Hub': [
 
-    { default: false, description: "Use a lock accessory instead of a garage door opener accessory for the gate.", modelKey: modelsDefaultGarageDoor, name: "Door.UseLock" },
-    { default: false, description: "Use a garage door opener accessory instead of a lock accessory. This is a visual preference only within HomeKit; the underlying lock behavior and feature options remain the same.", modelKey: modelsDefaultLock, name: "Door.UseGarageOpener" },
-    { default: false, defaultValue: ACCESS_GATE_DIRECTION_DURATION, description: "Duration, in seconds, of the full gate cycle (open, hold, and close). This time is split into three equal phases — Opening, Open, and Closing — to show the gate status in HomeKit. The door position sensor confirms the final Closed state. Adjust this to match your gate's actual cycle time.", modelKey: modelsDefaultGarageDoor, name: "GateDirectionDuration" },
-    { default: false, defaultValue: ACCESS_DEVICE_UNLOCK_INTERVAL, description: "Delay, in minutes, before locking the door lock relay once it's been unlocked by HomeKit. If set to 0, it will remain unlocked indefinitely. This applies regardless of whether you use a lock or garage door opener accessory. By default, the door lock relay will lock five seconds after unlocking.", name: "LockDelayInterval" },
-    { default: false, description: "Add a switch accessory to control the door lock relay. This can be useful in automation scenarios where you want to work around HomeKit's security restrictions and trigger events when a lock or unlock event occurs. This works with both lock and garage door opener accessories.", name: "Lock.Trigger" },
-    { default: true, description: "Add a doorbell accessory to handle doorbell ring events in HomeKit.", hasCapability: ["door_bell"], name: "Doorbell" },
-    { default: false, description: "Add a switch accessory for automation scenarios to reflect (but not trigger) doorbell ring events on an Access doorbell.", hasCapability: ["door_bell"], name: "Doorbell.Trigger" },
-    { default: true, description: "Add a contact sensor accessory for the door position sensor.", modelKey: modelsDps, name: "DPS" },
-    { default: true, description: "Add a contact sensor accessory for the remote release.", modelKey: modelsRel, name: "REL" },
-    { default: true, description: "Add a contact sensor accessory for the request to enter sensor.", modelKey: modelsRen, name: "REN" },
-    { default: true, description: "Add a contact sensor accessory for the request to exit sensor.", modelKey: modelsRex, name: "REX" },
-    { default: true, description: "Add a lock accessory for the side door (pedestrian gate) on UniFi Access Gate Hub devices.", modelKey: modelsSideDoor, name: "SideDoor" },
-    { default: true, description: "Add a contact sensor accessory for the side door position sensor.", group: "SideDoor", modelKey: modelsSideDoor, name: "SideDoor.DPS" },
-    { default: false, description: "Add a switch accessory to control the side door lock. This can be useful in automation scenarios where you want to work around HomeKit's security restrictions for controlling locks.", group: "SideDoor", modelKey: modelsSideDoor, name: "SideDoor.Lock.Trigger" }
+    { default: false, description: 'Use a lock accessory instead of a garage door opener accessory for the gate.', modelKey: modelsDefaultGarageDoor, name: 'Door.UseLock' },
+    { default: false, description: 'Use a garage door opener accessory instead of a lock accessory. This is a visual preference only within HomeKit; the underlying lock behavior and feature options remain the same.', modelKey: modelsDefaultLock, name: 'Door.UseGarageOpener' },
+    { default: false, defaultValue: ACCESS_GATE_DIRECTION_DURATION, description: "Duration, in seconds, of the full gate cycle (open, hold, and close). This time is split into three equal phases — Opening, Open, and Closing — to show the gate status in HomeKit. The door position sensor confirms the final Closed state. Adjust this to match your gate's actual cycle time.", modelKey: modelsDefaultGarageDoor, name: 'GateDirectionDuration' },
+    { default: false, defaultValue: ACCESS_DEVICE_UNLOCK_INTERVAL, description: "Delay, in minutes, before locking the door lock relay once it's been unlocked by HomeKit. If set to 0, it will remain unlocked indefinitely. This applies regardless of whether you use a lock or garage door opener accessory. By default, the door lock relay will lock five seconds after unlocking.", name: 'LockDelayInterval' },
+    { default: false, description: "Add a switch accessory to control the door lock relay. This can be useful in automation scenarios where you want to work around HomeKit's security restrictions and trigger events when a lock or unlock event occurs. This works with both lock and garage door opener accessories.", name: 'Lock.Trigger' },
+    { default: true, description: 'Add a doorbell accessory to handle doorbell ring events in HomeKit.', hasCapability: ['door_bell'], name: 'Doorbell' },
+    { default: false, description: 'Add a switch accessory for automation scenarios to reflect (but not trigger) doorbell ring events on an Access doorbell.', hasCapability: ['door_bell'], name: 'Doorbell.Trigger' },
+    { default: true, description: 'Add a contact sensor accessory for the door position sensor.', modelKey: modelsDps, name: 'DPS' },
+    { default: true, description: 'Add a contact sensor accessory for the remote release.', modelKey: modelsRel, name: 'REL' },
+    { default: true, description: 'Add a contact sensor accessory for the request to enter sensor.', modelKey: modelsRen, name: 'REN' },
+    { default: true, description: 'Add a contact sensor accessory for the request to exit sensor.', modelKey: modelsRex, name: 'REX' },
+    { default: true, description: 'Add a lock accessory for the side door (pedestrian gate) on UniFi Access Gate Hub devices.', modelKey: modelsSideDoor, name: 'SideDoor' },
+    { default: true, description: 'Add a contact sensor accessory for the side door position sensor.', group: 'SideDoor', modelKey: modelsSideDoor, name: 'SideDoor.DPS' },
+    { default: false, description: "Add a switch accessory to control the side door lock. This can be useful in automation scenarios where you want to work around HomeKit's security restrictions for controlling locks.", group: 'SideDoor', modelKey: modelsSideDoor, name: 'SideDoor.Lock.Trigger' },
   ],
 
   // Logging options.
-  "Log": [
+  'Log': [
 
-    { default: true, description: "Log doorbell ring events in Homebridge.", hasCapability: ["door_bell"], name: "Doorbell" },
-    { default: true, description: "Log door position sensor events in Homebridge.", modelKey: modelsDps, name: "DPS" },
-    { default: true, description: "Log door remote release events in Homebridge.", modelKey: modelsRel, name: "REL" },
-    { default: true, description: "Log door request to enter events in Homebridge.", modelKey: modelsRen, name: "REN" },
-    { default: true, description: "Log door request to exit events in Homebridge.", modelKey: modelsRex, name: "REX" },
-    { default: true, description: "Log lock events in Homebridge.", hasCapability: ["is_hub"], name: "Lock" }
-  ]
+    { default: true, description: 'Log doorbell ring events in Homebridge.', hasCapability: ['door_bell'], name: 'Doorbell' },
+    { default: true, description: 'Log door position sensor events in Homebridge.', modelKey: modelsDps, name: 'DPS' },
+    { default: true, description: 'Log door remote release events in Homebridge.', modelKey: modelsRel, name: 'REL' },
+    { default: true, description: 'Log door request to enter events in Homebridge.', modelKey: modelsRen, name: 'REN' },
+    { default: true, description: 'Log door request to exit events in Homebridge.', modelKey: modelsRex, name: 'REX' },
+    { default: true, description: 'Log lock events in Homebridge.', hasCapability: ['is_hub'], name: 'Lock' },
+  ],
 };
-/* eslint-enable @stylistic/max-len */

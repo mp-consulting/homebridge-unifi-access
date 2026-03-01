@@ -3,24 +3,24 @@
  * access-controller.ts: Access controller device class for UniFi Access.
  */
 import {
-  ACCESS_CONTROLLER_REFRESH_INTERVAL, ACCESS_CONTROLLER_RETRY_INTERVAL, PLATFORM_NAME, PLUGIN_NAME, createPrefixedLogger, isValidAddress, normalizeMac
-} from "./settings.js";
-import type { API, HAP, PlatformAccessory } from "homebridge";
-import { AccessApi, type AccessControllerConfig, type AccessDeviceConfig } from "unifi-access";
-import { type HomebridgePluginLogging, MqttClient, type Nullable, retry, sanitizeName, sleep } from "homebridge-plugin-utils";
-import type { AccessControllerOptions } from "./access-options.js";
-import type { AccessDevice } from "./access-device.js";
-import { AccessEventType } from "./access-types.js";
-import { AccessEvents } from "./access-events.js";
-import { AccessHub } from "./hub/index.js";
-import type { AccessPlatform } from "./access-platform.js";
-import { getDeviceCatalog } from "./access-device-catalog.js";
-import util from "node:util";
+  ACCESS_CONTROLLER_REFRESH_INTERVAL, ACCESS_CONTROLLER_RETRY_INTERVAL, PLATFORM_NAME, PLUGIN_NAME, createPrefixedLogger, isValidAddress, normalizeMac,
+} from './settings.js';
+import type { API, HAP, PlatformAccessory } from 'homebridge';
+import { AccessApi, type AccessControllerConfig, type AccessDeviceConfig } from 'unifi-access';
+import { type HomebridgePluginLogging, MqttClient, type Nullable, retry, sanitizeName, sleep } from 'homebridge-plugin-utils';
+import type { AccessControllerOptions } from './access-options.js';
+import type { AccessDevice } from './access-device.js';
+import { AccessEventType } from './access-types.js';
+import { AccessEvents } from './access-events.js';
+import { AccessHub } from './hub/index.js';
+import type { AccessPlatform } from './access-platform.js';
+import { getDeviceCatalog } from './access-device-catalog.js';
+import util from 'node:util';
 
 // Check if a device has supported hub or reader capabilities.
 function isSupportedDevice(device: AccessDeviceConfig): boolean {
 
-  return [ "is_hub", "is_reader" ].some(capability => device.capabilities.includes(capability));
+  return [ 'is_hub', 'is_reader' ].some(capability => device.capabilities.includes(capability));
 }
 
 export class AccessController {
@@ -67,7 +67,7 @@ export class AccessController {
     // Validate that the controller address is not a loopback, link-local, or otherwise invalid address.
     if(!isValidAddress(accessOptions.address)) {
 
-      this.log.error("Invalid controller address: %s. Please provide a valid network address.", accessOptions.address);
+      this.log.error('Invalid controller address: %s. Please provide a valid network address.', accessOptions.address);
 
       return;
     }
@@ -84,9 +84,9 @@ export class AccessController {
   public async login(): Promise<void> {
 
     // The plugin has been disabled globally. Let the user know that we're done here.
-    if(!this.hasFeature("Device")) {
+    if(!this.hasFeature('Device')) {
 
-      this.log.info("Disabling this UniFi Access controller.");
+      this.log.info('Disabling this UniFi Access controller.');
 
       return;
     }
@@ -103,14 +103,14 @@ export class AccessController {
         }
       },
       info: (message: string, ...parameters: unknown[]): void => this.platform.log.info(util.format(message, ...parameters)),
-      warn: (message: string, ...parameters: unknown[]): void => this.platform.log.warn(util.format(message, ...parameters))
+      warn: (message: string, ...parameters: unknown[]): void => this.platform.log.warn(util.format(message, ...parameters)),
     };
 
     // Create our connection to the Access API.
     this.udaApi = new AccessApi(udaLog);
 
-    // Attempt to login to the Access controller, retrying at reasonable intervals. This accounts for cases where the Access controller or the network connection
-    // may not be fully available when we startup.
+    // Attempt to login to the Access controller, retrying at reasonable intervals. This accounts for cases where the Access controller or the network
+    // connection may not be fully available when we startup.
     await retry(async () => this.udaApi.login(this.config.address, this.config.username, this.config.password), ACCESS_CONTROLLER_RETRY_INTERVAL * 1000);
 
     // Now, let's get the bootstrap configuration from the Access controller.
@@ -123,21 +123,22 @@ export class AccessController {
     this.name = this.config.name ?? this.udaApi.name;
 
     // We successfully logged in.
-    this.log.info("Connected to %s (UniFi Access %s running on UniFi OS %s).", this.config.address, this.uda.version, this.uda.host.firmware_version);
+    this.log.info('Connected to %s (UniFi Access %s running on UniFi OS %s).', this.config.address, this.uda.version, this.uda.host.firmware_version);
 
     // Now that we know the Access controller configuration, check to see if we've disabled it.
-    if(!this.hasFeature("Device")) {
+    if(!this.hasFeature('Device')) {
 
       this.udaApi.logout();
-      this.log.info("Disabling this UniFi Access controller in HomeKit.");
+      this.log.info('Disabling this UniFi Access controller in HomeKit.');
 
-      // Let's sleep for thirty seconds to give all the accessories a chance to load before disabling everything. Homebridge doesn't have a good mechanism to notify us
-      // when all the cached accessories are loaded at startup.
+      // Let's sleep for thirty seconds to give all the accessories a chance to load before disabling everything. Homebridge doesn't have a good mechanism
+      // to notify us when all the cached accessories are loaded at startup.
       await sleep(30);
 
-      // Unregister all the accessories for this controller from Homebridge that may have been restored already. Any additional ones will be automatically caught when
-      // they are restored.
-      this.platform.accessories.filter(accessory => accessory.context.controller === this.uda.host.mac).map(accessory => this.removeHomeKitDevice(accessory, true));
+      // Unregister all the accessories for this controller from Homebridge that may have been restored already. Any additional ones will be automatically
+      // caught when they are restored.
+      this.platform.accessories.filter(accessory => accessory.context.controller === this.uda.host.mac)
+        .map(accessory => this.removeHomeKitDevice(accessory, true));
 
       return;
     }
@@ -162,7 +163,7 @@ export class AccessController {
           continue;
         }
 
-        this.log.info("Discovered %s: %s.", this.resolveDeviceModel(device), this.udaApi.getDeviceName(device, this.resolveDeviceName(device), true));
+        this.log.info('Discovered %s: %s.', this.resolveDeviceModel(device), this.udaApi.getDeviceName(device, this.resolveDeviceName(device), true));
       }
     }
 
@@ -187,7 +188,7 @@ export class AccessController {
     syncUdaHomeKit();
 
     // Let's set a listener to wait for bootstrap events to occur so we can keep ourselves in sync with the Access controller.
-    this.udaApi.on("bootstrap", () => {
+    this.udaApi.on('bootstrap', () => {
 
       // Sync our device view.
       syncUdaHomeKit();
@@ -213,7 +214,7 @@ export class AccessController {
     }
 
     // Default to an unknown device type.
-    this.log.error("Unknown device class %s detected for %s.", device.device_type, this.resolveDeviceName(device));
+    this.log.error('Unknown device class %s detected for %s.', device.device_type, this.resolveDeviceName(device));
 
     return false;
   }
@@ -258,13 +259,13 @@ export class AccessController {
 
     // Generate this device's unique identifier. For multi-door devices, we append source_id to the MAC address to distinguish them.
     const catalog = getDeviceCatalog(device.device_type);
-    const uuid = this.hap.uuid.generate(device.mac + (catalog?.appendsSourceId ? "-" + device.source_id.toUpperCase() : ""));
+    const uuid = this.hap.uuid.generate(device.mac + (catalog?.appendsSourceId ? '-' + device.source_id.toUpperCase() : ''));
 
     // See if we already know about this accessory.
     let accessory = this.platform.accessories.find(x => x.UUID === uuid);
 
     // Enable or disable certain devices based on configuration parameters.
-    if(!this.hasFeature("Device", device)) {
+    if(!this.hasFeature('Device', device)) {
 
       if(accessory) {
 
@@ -279,7 +280,7 @@ export class AccessController {
 
       accessory = new this.api.platformAccessory(sanitizeName(this.resolveDeviceName(device)), uuid);
 
-      this.log.info("%s: Adding %s to HomeKit.", this.udaApi.getFullName(device), device.display_model);
+      this.log.info('%s: Adding %s to HomeKit.', this.udaApi.getFullName(device), device.display_model);
 
       // Register this accessory with homebridge and add it to the accessory array so we can track it.
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
@@ -296,7 +297,7 @@ export class AccessController {
     }
 
     // Update the configuration on an existing Access device.
-    // eslint-disable-next-line camelcase
+     
     this.events.emit(AccessEventType.DEVICE_UPDATE, { data: device, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id });
 
     return true;
@@ -312,7 +313,7 @@ export class AccessController {
 
     if(this.udaApi.devices && !this.discoverDevices(this.udaApi.devices)) {
 
-      this.log.error("Error discovering devices.");
+      this.log.error('Error discovering devices.');
     }
 
     // Remove Access devices that are no longer found on this Access controller, but we still have in HomeKit.
@@ -329,21 +330,20 @@ export class AccessController {
 
     // Process the device removal queue before we do anything else.
     this.platform.accessories.filter(accessory => accessory.UUID in this.deviceRemovalQueue).map(accessory =>
-      // eslint-disable-next-line @stylistic/implicit-arrow-linebreak
-      this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test("Device",
-        (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? "") as string, this.id)));
+      this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test('Device',
+        (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string, this.id)));
 
     for(const accessory of this.platform.accessories) {
 
       const accessDevice = this.configuredDevices[accessory.UUID];
 
-      // Check to see if we have an orphan - where we haven't configured this in the plugin, but the accessory still exists in HomeKit. One example of when this might
-      // happen is when Homebridge might be shutdown and a device is then removed. When we start back up, the device still exists in HomeKit but not in Access. We
-      // catch those orphan devices here.
+      // Check to see if we have an orphan - where we haven't configured this in the plugin, but the accessory still exists in HomeKit. One example of
+      // when this might happen is when Homebridge might be shutdown and a device is then removed. When we start back up, the device still exists in
+      // HomeKit but not in Access. We catch those orphan devices here.
       if(!accessDevice) {
 
-        this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test("Device",
-          (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? "") as string));
+        this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test('Device',
+          (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string));
 
         continue;
       }
@@ -366,22 +366,22 @@ export class AccessController {
       }
 
       // Process the device removal.
-      this.removeHomeKitDevice(accessory, !this.hasFeature("Device", accessDevice.uda));
+      this.removeHomeKitDevice(accessory, !this.hasFeature('Device', accessDevice.uda));
     }
   }
 
   // Utility to retrieve a reasonable device name for an Access device.
   private resolveDeviceName(device: AccessDeviceConfig): string {
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    return (device.alias?.length ? device.alias : device.name) ?? device.display_model ?? device.model ?? device.device_type ?? "Access Device";
+     
+    return (device.alias?.length ? device.alias : device.name) ?? device.display_model ?? device.model ?? device.device_type ?? 'Access Device';
   }
 
   // Utility to retrieve a reasonable device model for an Access device.
   private resolveDeviceModel(device: AccessDeviceConfig): string {
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    return device.display_model ?? device.model ?? device.device_type ?? "Unknown Model";
+     
+    return device.display_model ?? device.model ?? device.device_type ?? 'Unknown Model';
   }
 
   // Remove an individual Access device from HomeKit.
@@ -399,10 +399,10 @@ export class AccessController {
       return;
     }
 
-    const delayInterval = this.getFeatureNumber("Controller.DelayDeviceRemoval") ?? 0;
+    const delayInterval = this.getFeatureNumber('Controller.DelayDeviceRemoval') ?? 0;
 
-    // For certain use cases, we may want to defer removal of an Access device where Access may lose track of devices for a brief period of time. This prevents a
-    // potential back-and-forth where devices are removed momentarily only to be readded later.
+    // For certain use cases, we may want to defer removal of an Access device where Access may lose track of devices for a brief period of time.
+    // This prevents a potential back-and-forth where devices are removed momentarily only to be readded later.
     if(!noRemovalDelay && delayInterval) {
 
       // Have we seen this device queued for removal previously? If not, let's add it to the queue and come back after our specified delay.
@@ -410,7 +410,7 @@ export class AccessController {
 
         this.deviceRemovalQueue[accessory.UUID] = Date.now();
 
-        this.log.info("%s: Delaying device removal for at least %s second%s.", accessory.displayName, delayInterval, delayInterval > 1 ? "s" : "");
+        this.log.info('%s: Delaying device removal for at least %s second%s.', accessory.displayName, delayInterval, delayInterval > 1 ? 's' : '');
 
         return;
       }
@@ -431,8 +431,8 @@ export class AccessController {
     // See if we can pull the device's configuration details from our Access device instance or the controller.
     const device = accessDevice?.uda ?? this.udaApi.devices?.find(dev => dev.unique_id === accessory.context.mac.toLowerCase()) ?? null;
 
-    this.log.info("%s: Removing %s from HomeKit.", device ? this.udaApi.getDeviceName(device) : accessDevice?.accessoryName ?? accessory.displayName,
-      device?.display_model ?? "device");
+    this.log.info('%s: Removing %s from HomeKit.', device ? this.udaApi.getDeviceName(device) : accessDevice?.accessoryName ?? accessory.displayName,
+      device?.display_model ?? 'device');
 
     // Cleanup our device instance.
     accessDevice?.cleanup();
@@ -490,7 +490,7 @@ export class AccessController {
   // Return a unique identifier for an Access controller.
   public get id(): string | undefined {
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     return this.uda.host?.mac ? normalizeMac(this.uda.host.mac) : undefined;
   }
 }

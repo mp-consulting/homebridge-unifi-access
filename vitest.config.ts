@@ -1,17 +1,22 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-
   test: {
-
-    coverage: {
-
-      include: ["src/**/*.ts"],
-      provider: "v8"
-    },
-
-    environment: "node",
+    environment: 'node',
     globals: true,
-    include: ["tests/**/*.test.ts"]
-  }
+    include: [
+      'src/**/*.{test,spec}.ts',
+      'test/**/*.{test,spec}.ts',
+      'tests/**/*.{test,spec}.ts',
+    ],
+    testTimeout: 10000,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.{test,spec}.ts', 'src/**/__tests__/**'],
+    },
+  },
+  esbuild: {
+    target: 'es2022',
+  },
 });

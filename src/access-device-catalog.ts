@@ -4,10 +4,10 @@
  */
 
 // The sensor inputs supported across Access devices.
-export type SensorInput = "Dps" | "Rel" | "Ren" | "Rex";
+export type SensorInput = 'Dps' | 'Rel' | 'Ren' | 'Rex';
 
 // Valid proxy modes for devices that use extension-based input detection (e.g. UA-ULTRA).
-type ProxyMode = "dps" | "rex";
+type ProxyMode = 'dps' | 'rex';
 
 // Terminal input configuration for a specific sensor on a specific device type.
 export interface SensorConfig {
@@ -15,8 +15,8 @@ export interface SensorConfig {
   // The config key used to read the sensor's current state from uda.configs.
   configKey?: string;
 
-  // For devices that use proxy mode (e.g. UA-ULTRA), this specifies the rex_button_mode value that enables this sensor. When set, wiringKeys are ignored and the
-  // extension config is checked instead.
+  // For devices that use proxy mode (e.g. UA-ULTRA), this specifies the rex_button_mode value that enables this sensor. When set, wiringKeys are
+  // ignored and the extension config is checked instead.
   proxyMode?: ProxyMode;
 
   // Wiring keys that must all be "on" to consider this sensor as physically wired.
@@ -38,7 +38,7 @@ export interface DeviceCatalogEntry {
   appendsSourceId: boolean;
 
   // The default HomeKit door service type for this device.
-  defaultDoorService: "Lock" | "GarageDoorOpener";
+  defaultDoorService: 'Lock' | 'GarageDoorOpener';
 
   // The user-facing display model name (e.g. "UA Hub", "UA Gate").
   displayModel: string;
@@ -75,160 +75,160 @@ export interface DeviceCatalogEntry {
 }
 
 // UGT port and extension identifiers used when mapping physical doors to location IDs.
-export const UGT_MAIN_PORT_SOURCE_ID = "port1";
-export const UGT_SIDE_PORT_SOURCE_ID = "port2";
-export const UGT_SIDE_DOOR_TARGET_NAME = "oper2";
+export const UGT_MAIN_PORT_SOURCE_ID = 'port1';
+export const UGT_SIDE_PORT_SOURCE_ID = 'port2';
+export const UGT_SIDE_DOOR_TARGET_NAME = 'oper2';
 
 // The device catalog, keyed by device_type. This is the single source of truth for all device-specific knowledge in the plugin.
 export const deviceCatalog: Readonly<Record<string, DeviceCatalogEntry>> = {
 
-  "UA-Hub-Door-Mini": {
+  'UA-Hub-Door-Mini': {
 
     appendsSourceId: false,
-    defaultDoorService: "Lock",
-    displayModel: "UA Hub Door Mini",
+    defaultDoorService: 'Lock',
+    displayModel: 'UA Hub Door Mini',
     hasDps: true,
     hasRel: false,
     hasRen: false,
     hasRex: true,
-    lockRelayConfigKey: "output_d1_lock_relay",
+    lockRelayConfigKey: 'output_d1_lock_relay',
 
     sensors: {
 
-      Dps: { configKey: "input_d1_dps", wiringKeys: [ "wiring_state_d1-dps-neg", "wiring_state_d1-dps-pos" ] },
-      Rex: { configKey: "input_d1_button", wiringKeys: [ "wiring_state_d1-button-neg", "wiring_state_d1-button-pos" ] }
+      Dps: { configKey: 'input_d1_dps', wiringKeys: [ 'wiring_state_d1-dps-neg', 'wiring_state_d1-dps-pos' ] },
+      Rex: { configKey: 'input_d1_button', wiringKeys: [ 'wiring_state_d1-button-neg', 'wiring_state_d1-button-pos' ] },
     },
 
     skipsV1LockEvents: false,
     supportsSideDoor: false,
     usesConfigsApi: false,
     usesLocationApi: false,
-    usesProxyMode: false
+    usesProxyMode: false,
   },
 
-  "UA-ULTRA": {
+  'UA-ULTRA': {
 
     appendsSourceId: false,
-    defaultDoorService: "Lock",
-    displayModel: "UA Ultra",
+    defaultDoorService: 'Lock',
+    displayModel: 'UA Ultra',
     hasDps: true,
     hasRel: false,
     hasRen: false,
     hasRex: true,
-    lockRelayConfigKey: "output_d1_lock_relay",
+    lockRelayConfigKey: 'output_d1_lock_relay',
 
     sensors: {
 
-      Dps: { configKey: "input_d1_dps", proxyMode: "dps" },
-      Rex: { configKey: "input_d1_button", proxyMode: "rex" }
+      Dps: { configKey: 'input_d1_dps', proxyMode: 'dps' },
+      Rex: { configKey: 'input_d1_button', proxyMode: 'rex' },
     },
 
     skipsV1LockEvents: false,
     supportsSideDoor: false,
     usesConfigsApi: false,
     usesLocationApi: false,
-    usesProxyMode: true
+    usesProxyMode: true,
   },
 
-  "UAH": {
+  'UAH': {
 
     appendsSourceId: false,
-    defaultDoorService: "Lock",
-    displayModel: "UA Hub",
+    defaultDoorService: 'Lock',
+    displayModel: 'UA Hub',
     hasDps: true,
     hasRel: true,
     hasRen: true,
     hasRex: true,
-    lockRelayConfigKey: "input_state_rly-lock_dry",
+    lockRelayConfigKey: 'input_state_rly-lock_dry',
 
     sensors: {
 
-      Dps: { configKey: "input_state_dps", wiringKeys: [ "wiring_state_dps-neg", "wiring_state_dps-pos" ] },
-      Rel: { configKey: "input_state_rel", wiringKeys: [ "wiring_state_rel-neg", "wiring_state_rel-pos" ] },
-      Ren: { configKey: "input_state_ren", wiringKeys: [ "wiring_state_ren-neg", "wiring_state_ren-pos" ] },
-      Rex: { configKey: "input_state_rex", wiringKeys: [ "wiring_state_rex-neg", "wiring_state_rex-pos" ] }
+      Dps: { configKey: 'input_state_dps', wiringKeys: [ 'wiring_state_dps-neg', 'wiring_state_dps-pos' ] },
+      Rel: { configKey: 'input_state_rel', wiringKeys: [ 'wiring_state_rel-neg', 'wiring_state_rel-pos' ] },
+      Ren: { configKey: 'input_state_ren', wiringKeys: [ 'wiring_state_ren-neg', 'wiring_state_ren-pos' ] },
+      Rex: { configKey: 'input_state_rex', wiringKeys: [ 'wiring_state_rex-neg', 'wiring_state_rex-pos' ] },
     },
 
     skipsV1LockEvents: false,
     supportsSideDoor: false,
     usesConfigsApi: false,
     usesLocationApi: false,
-    usesProxyMode: false
+    usesProxyMode: false,
   },
 
-  "UAH-Ent": {
+  'UAH-Ent': {
 
     appendsSourceId: true,
-    defaultDoorService: "Lock",
-    displayModel: "UA Hub Enterprise",
+    defaultDoorService: 'Lock',
+    displayModel: 'UA Hub Enterprise',
     hasDps: true,
     hasRel: true,
     hasRen: true,
     hasRex: true,
-    lockRelayConfigKey: "input_state_rly-lock_dry",
+    lockRelayConfigKey: 'input_state_rly-lock_dry',
 
     sensors: {
 
-      Dps: { configKey: "input_state_dps", wiringKeys: [ "wiring_state_dps-neg", "wiring_state_dps-pos" ] },
-      Rel: { configKey: "input_state_rel", wiringKeys: [ "wiring_state_rel-neg", "wiring_state_rel-pos" ] },
-      Ren: { configKey: "input_state_ren", wiringKeys: [ "wiring_state_ren-neg", "wiring_state_ren-pos" ] },
-      Rex: { configKey: "input_state_rex", wiringKeys: [ "wiring_state_rex-neg", "wiring_state_rex-pos" ] }
+      Dps: { configKey: 'input_state_dps', wiringKeys: [ 'wiring_state_dps-neg', 'wiring_state_dps-pos' ] },
+      Rel: { configKey: 'input_state_rel', wiringKeys: [ 'wiring_state_rel-neg', 'wiring_state_rel-pos' ] },
+      Ren: { configKey: 'input_state_ren', wiringKeys: [ 'wiring_state_ren-neg', 'wiring_state_ren-pos' ] },
+      Rex: { configKey: 'input_state_rex', wiringKeys: [ 'wiring_state_rex-neg', 'wiring_state_rex-pos' ] },
     },
 
     skipsV1LockEvents: false,
     supportsSideDoor: false,
     usesConfigsApi: false,
     usesLocationApi: false,
-    usesProxyMode: false
+    usesProxyMode: false,
   },
 
-  "UGT": {
+  'UGT': {
 
     appendsSourceId: false,
-    defaultDoorService: "GarageDoorOpener",
-    displayModel: "UA Gate",
+    defaultDoorService: 'GarageDoorOpener',
+    displayModel: 'UA Gate',
     hasDps: true,
     hasRel: false,
     hasRen: false,
     hasRex: false,
-    lockRelayConfigKey: "output_oper1_relay",
+    lockRelayConfigKey: 'output_oper1_relay',
 
     sensors: {
 
-      Dps: { configKey: "input_gate_dps", wiringKeys: [ "wiring_state_gate-dps-neg", "wiring_state_gate-dps-pos" ] }
+      Dps: { configKey: 'input_gate_dps', wiringKeys: [ 'wiring_state_gate-dps-neg', 'wiring_state_gate-dps-pos' ] },
     },
 
     sideDoor: {
 
-      dpsConfigKey: "input_door_dps",
-      dpsWiringKeys: [ "wiring_state_door-dps-neg", "wiring_state_door-dps-pos" ],
-      lockRelayConfigKey: "output_oper2_relay"
+      dpsConfigKey: 'input_door_dps',
+      dpsWiringKeys: [ 'wiring_state_door-dps-neg', 'wiring_state_door-dps-pos' ],
+      lockRelayConfigKey: 'output_oper2_relay',
     },
 
     skipsV1LockEvents: true,
     supportsSideDoor: true,
     usesConfigsApi: false,
     usesLocationApi: true,
-    usesProxyMode: false
+    usesProxyMode: false,
   },
 
-  "UVC G6 Entry": {
+  'UVC G6 Entry': {
 
     appendsSourceId: false,
-    defaultDoorService: "Lock",
-    displayModel: "UVC G6 Entry",
+    defaultDoorService: 'Lock',
+    displayModel: 'UVC G6 Entry',
     hasDps: false,
     hasRel: false,
     hasRen: false,
     hasRex: false,
-    lockRelayConfigKey: "input_state_rly-lock_dry",
+    lockRelayConfigKey: 'input_state_rly-lock_dry',
     sensors: {},
     skipsV1LockEvents: false,
     supportsSideDoor: false,
     usesConfigsApi: true,
     usesLocationApi: false,
-    usesProxyMode: false
-  }
+    usesProxyMode: false,
+  },
 };
 
 // Look up a device catalog entry by device_type. Returns undefined for unknown devices.
@@ -255,5 +255,5 @@ export const modelsRel = modelsWithCapability(e => e.hasRel);
 export const modelsRen = modelsWithCapability(e => e.hasRen);
 export const modelsRex = modelsWithCapability(e => e.hasRex);
 export const modelsSideDoor = modelsWithCapability(e => e.supportsSideDoor);
-export const modelsDefaultGarageDoor = modelsWithCapability(e => e.defaultDoorService === "GarageDoorOpener");
-export const modelsDefaultLock = modelsWithCapability(e => (e.defaultDoorService === "Lock") && !e.appendsSourceId && !e.usesConfigsApi);
+export const modelsDefaultGarageDoor = modelsWithCapability(e => e.defaultDoorService === 'GarageDoorOpener');
+export const modelsDefaultLock = modelsWithCapability(e => (e.defaultDoorService === 'Lock') && !e.appendsSourceId && !e.usesConfigsApi);

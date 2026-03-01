@@ -2,13 +2,13 @@
  *
  * access-platform.ts: homebridge-unifi-access platform class.
  */
-import type { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from "homebridge";
-import { type AccessOptions, featureOptionCategories, featureOptions } from "./access-options.js";
-import { ACCESS_MQTT_TOPIC } from "./settings.js";
-import { APIEvent } from "homebridge";
-import { AccessController } from "./access-controller.js";
-import { FeatureOptions } from "homebridge-plugin-utils";
-import util from "node:util";
+import type { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
+import { type AccessOptions, featureOptionCategories, featureOptions } from './access-options.js';
+import { ACCESS_MQTT_TOPIC } from './settings.js';
+import { APIEvent } from 'homebridge';
+import { AccessController } from './access-controller.js';
+import { FeatureOptions } from 'homebridge-plugin-utils';
+import util from 'node:util';
 
 export class AccessPlatform implements DynamicPlatformPlugin {
 
@@ -33,19 +33,19 @@ export class AccessPlatform implements DynamicPlatformPlugin {
       controllers: config?.controllers ?? [],
       debugAll: false,
       options: config?.options ?? [],
-      ringDelay: config?.ringDelay ?? 0
+      ringDelay: config?.ringDelay ?? 0,
     };
 
     // We need a UniFi Access controller configured to do anything.
     if(!this.config.controllers.length) {
 
-      this.log.info("No UniFi Access controllers have been configured.");
+      this.log.info('No UniFi Access controllers have been configured.');
 
       return;
     }
 
     // Debugging - most people shouldn't enable this.
-    this.debug("Debug logging on. Expect a lot of data.");
+    this.debug('Debug logging on. Expect a lot of data.');
 
     // Loop through each configured controller and instantiate it.
     for(const controllerConfig of this.config.controllers) {
@@ -53,7 +53,7 @@ export class AccessPlatform implements DynamicPlatformPlugin {
       // We need an address, or there's nothing to do.
       if(!controllerConfig.address) {
 
-        this.log.info("No host or IP address has been configured.");
+        this.log.info('No host or IP address has been configured.');
 
         continue;
       }
@@ -61,7 +61,7 @@ export class AccessPlatform implements DynamicPlatformPlugin {
       // We need login credentials or we're skipping this one.
       if(!controllerConfig.username || !controllerConfig.password) {
 
-        this.log.info("No UniFi Access login credentials have been configured.");
+        this.log.info('No UniFi Access login credentials have been configured.');
 
         continue;
       }
@@ -72,8 +72,8 @@ export class AccessPlatform implements DynamicPlatformPlugin {
       this.controllers.push(new AccessController(this, controllerConfig));
     }
 
-    // Avoid a prospective race condition by waiting to configure our controllers until Homebridge is done loading all the cached accessories it knows about, and calling
-    // configureAccessory() on each.
+    // Avoid a prospective race condition by waiting to configure our controllers until Homebridge is done loading all the cached accessories it knows
+    // about, and calling configureAccessory() on each.
     api.on(APIEvent.DID_FINISH_LAUNCHING, this.launchControllers.bind(this));
   }
 
@@ -92,7 +92,7 @@ export class AccessPlatform implements DynamicPlatformPlugin {
     for(const controller of this.controllers) {
 
       // Login to the Access controller.
-      void controller.login().catch((error: Error) => this.log.error("Access controller login error: %s.", error.message));
+      void controller.login().catch((error: Error) => this.log.error('Access controller login error: %s.', error.message));
     }
   }
 
