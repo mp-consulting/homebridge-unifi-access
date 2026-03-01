@@ -156,8 +156,8 @@ export class AccessEvents extends EventEmitter<AccessEventMap> {
     return JSON.stringify({
 
       event: packet.event,
-      event_object_id: packet.event_object_id,
-      ...(packet.meta ? { meta: { id: packet.meta.id, object_type: packet.meta.object_type } } : {})
+      event_object_id: packet.event_object_id, // eslint-disable-line camelcase
+      ...(packet.meta ? { meta: { id: packet.meta.id, object_type: packet.meta.object_type } } : {}) // eslint-disable-line camelcase
     });
   }
 

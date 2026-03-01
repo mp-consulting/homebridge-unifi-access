@@ -2,7 +2,9 @@
  *
  * access-controller.ts: Access controller device class for UniFi Access.
  */
-import { ACCESS_CONTROLLER_REFRESH_INTERVAL, ACCESS_CONTROLLER_RETRY_INTERVAL, PLATFORM_NAME, PLUGIN_NAME, createPrefixedLogger, isValidAddress, normalizeMac } from "./settings.js";
+import {
+  ACCESS_CONTROLLER_REFRESH_INTERVAL, ACCESS_CONTROLLER_RETRY_INTERVAL, PLATFORM_NAME, PLUGIN_NAME, createPrefixedLogger, isValidAddress, normalizeMac
+} from "./settings.js";
 import type { API, HAP, PlatformAccessory } from "homebridge";
 import { AccessApi, type AccessControllerConfig, type AccessDeviceConfig } from "unifi-access";
 import { type HomebridgePluginLogging, MqttClient, type Nullable, retry, sanitizeName, sleep } from "homebridge-plugin-utils";

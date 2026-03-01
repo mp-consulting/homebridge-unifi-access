@@ -1,9 +1,9 @@
 /* @mp-consulting/homebridge-unifi-access Custom UI. */
-import { PLUGIN_NAME } from "./modules/constants.js";
-import { getControllers, state } from "./modules/state.js";
 import { $, showScreen } from "./modules/dom-helpers.js";
-import { handleDiscover } from "./modules/discovery.js";
+import { getControllers, state } from "./modules/state.js";
 import { handleSetupSubmit, openAddController, renderControllers } from "./modules/controllers.js";
+import { PLUGIN_NAME } from "./modules/constants.js";
+import { handleDiscover } from "./modules/discovery.js";
 import { renderOptions } from "./modules/feature-options.js";
 
 // Search & toolbar.
@@ -88,7 +88,7 @@ if(!state.pluginConfig.length) {
   await homebridge.updatePluginConfig(state.pluginConfig);
 }
 
-state.pluginConfig[0].name = state.pluginConfig[0].name || PLUGIN_NAME;
+state.pluginConfig[0].name ||= PLUGIN_NAME;
 
 // Show the right screen.
 if(getControllers().length) {

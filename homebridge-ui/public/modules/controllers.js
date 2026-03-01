@@ -28,6 +28,7 @@ export const renderControllers = () => {
     const li = document.createElement("li");
 
     li.className = "list-group-item";
+    /* eslint-disable no-restricted-syntax */
     li.innerHTML = `
       <div class="d-flex w-100 justify-content-between align-items-center">
         <div>
@@ -44,6 +45,7 @@ export const renderControllers = () => {
         </div>
       </div>
     `;
+    /* eslint-enable no-restricted-syntax */
 
     li.querySelector(".feature-options-btn").addEventListener("click", () => openFeatureOptions(index));
     li.querySelector(".edit-ctrl-btn").addEventListener("click", () => openEditController(index));
@@ -147,7 +149,7 @@ export const handleSetupSubmit = async (event) => {
   try {
 
 
-    const devices = await homebridge.request("/getDevices", { address, username, password });
+    const devices = await homebridge.request("/getDevices", { address, password, username });
 
     if(!devices?.length) {
 
@@ -161,13 +163,9 @@ export const handleSetupSubmit = async (event) => {
       return;
     }
 
-    if(!state.pluginConfig[0].controllers) {
+    state.pluginConfig[0].controllers ||= [];
 
-
-      state.pluginConfig[0].controllers = [];
-    }
-
-    const controllerData = { address, username, password };
+    const controllerData = { address, password, username };
 
     if(devices[0]?.host?.hostname) {
 

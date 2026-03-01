@@ -31,6 +31,7 @@ export const handleDiscover = async () => {
         "All discovered devices are already configured." :
         "No devices found. Make sure your UniFi console is on and connected.";
 
+      /* eslint-disable-next-line no-restricted-syntax */
       container.innerHTML = `<div class="alert alert-${devices.length ? "success" : "warning"}">${msg}</div>`;
       listDiv.style.display = "block";
     } else {
@@ -45,6 +46,7 @@ export const handleDiscover = async () => {
   } catch(e) {
 
 
+    /* eslint-disable-next-line no-restricted-syntax */
     container.innerHTML = `<div class="alert alert-danger">Discovery error: ${escapeHtml(e.message)}</div>`;
     listDiv.style.display = "block";
   } finally {
@@ -63,6 +65,7 @@ const createDiscoveredDeviceItem = (device) => {
 
   li.className = "list-group-item list-group-item-action";
   li.style.cursor = "pointer";
+  /* eslint-disable no-restricted-syntax */
   li.innerHTML = `
     <div class="d-flex w-100 justify-content-between align-items-center">
       <div>
@@ -74,6 +77,7 @@ const createDiscoveredDeviceItem = (device) => {
       <span class="badge bg-primary rounded-pill">Select</span>
     </div>
   `;
+  /* eslint-enable no-restricted-syntax */
 
   li.addEventListener("click", () => {
 

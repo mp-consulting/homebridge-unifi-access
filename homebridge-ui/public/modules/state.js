@@ -1,13 +1,13 @@
 export const state = {
 
 
-  pluginConfig: [],
-  editingIndex: null,
-  devices: [],
   categories: [],
-  options: {},
   currentControllerIndex: null,
-  openCategories: new Set()
+  devices: [],
+  editingIndex: null,
+  openCategories: new Set(),
+  options: {},
+  pluginConfig: []
 };
 
 export const getControllers = () => state.pluginConfig[0]?.controllers || [];
