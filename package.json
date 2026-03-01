@@ -1,6 +1,6 @@
 {
   "name": "@mp-consulting/homebridge-unifi-access",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "UniFi Access",
   "description": "Complete HomeKit support for UniFi Access devices — locks, doorbells, sensors, and readers — with automatic device discovery and realtime events.",
   "author": "Mickael Palma",
@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/mp-consulting/homebridge-unifi-access.git"
+    "url": "git+https://github.com/mp-consulting/homebridge-unifi-access.git"
   },
   "bugs": {
     "url": "https://github.com/mp-consulting/homebridge-unifi-access/issues"
@@ -59,6 +59,11 @@
     "monitor:events": "npx tsx scripts/event-schema-monitor.ts"
   },
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "homebridge-ui",
+    "config.schema.json"
+  ],
   "dependencies": {
     "@homebridge/plugin-ui-utils": "2.1.2",
     "homebridge-plugin-utils": "1.30.0",
