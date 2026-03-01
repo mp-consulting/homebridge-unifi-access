@@ -315,6 +315,7 @@ describe("AccessEvents", () => {
         hints: { syncName: true },
         isOnline: true,
         log: { info: vi.fn() },
+        get resolvedName() { return this.uda.alias; },
         uda: createMockDeviceConfig({ alias: "Old Name" })
       };
 

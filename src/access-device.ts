@@ -496,6 +496,12 @@ export abstract class AccessDevice extends AccessBase {
     return this.controller.udaApi.getFullName(this.uda);
   }
 
+  // Utility function to return the name that configureInfo would sync to. Subclasses may override to use a different source (e.g., door name).
+  public get resolvedName(): string | undefined {
+
+    return this.uda.alias;
+  }
+
   // Utility function to return the current accessory name of this device.
   public get accessoryName(): string {
 

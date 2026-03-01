@@ -138,6 +138,12 @@ export class AccessHub extends AccessDevice {
     return true;
   }
 
+  // Override to prefer the door name over the device alias for UA Gate hubs.
+  public override get resolvedName(): string | undefined {
+
+    return this.mainDoorName ?? this.uda.alias;
+  }
+
   // Configure the device information details for HomeKit. Overrides the base class to prefer the door name over the device alias for UA Gate hubs.
   public configureInfo(): boolean {
 

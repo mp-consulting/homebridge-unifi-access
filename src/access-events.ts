@@ -74,7 +74,7 @@ export class AccessEvents extends EventEmitter<AccessEventMap> {
         .map(x => x.updateCharacteristic(this.hap.Characteristic.StatusActive, accessDevice.isOnline));
 
       // Sync names, if configured to do so.
-      if(accessDevice.hints.syncName && accessDevice.uda.alias && (accessDevice.accessoryName !== sanitizeName(accessDevice.uda.alias))) {
+      if(accessDevice.hints.syncName && accessDevice.resolvedName && (accessDevice.accessoryName !== sanitizeName(accessDevice.resolvedName))) {
 
         accessDevice.log.info("Name change detected. A restart of Homebridge may be needed in order to complete name synchronization with HomeKit.");
         accessDevice.configureInfo();

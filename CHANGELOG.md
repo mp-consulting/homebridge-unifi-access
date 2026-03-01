@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.4 (2026-03-01)
+
+### Bug Fixes
+
+- Fix spurious "Name change detected" log spam on every device update event for UA Gate hubs using per-door names.
+
 ## 1.0.3 (2026-03-01)
 
 ### Bug Fixes
