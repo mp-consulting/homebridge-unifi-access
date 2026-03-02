@@ -6,7 +6,6 @@
 
 [![Downloads](https://img.shields.io/npm/dt/@mp-consulting/homebridge-unifi-access?color=%230559C9&logo=icloud&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/@mp-consulting/homebridge-unifi-access)
 [![Version](https://img.shields.io/npm/v/@mp-consulting/homebridge-unifi-access?color=%230559C9&label=Latest%20Version&logo=ubiquiti&logoColor=%23FFFFFF&style=for-the-badge)](https://www.npmjs.com/package/@mp-consulting/homebridge-unifi-access)
-[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=for-the-badge&logoColor=%23FFFFFF&logo=homebridge)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![License](https://img.shields.io/npm/l/@mp-consulting/homebridge-unifi-access?color=%230559C9&logo=open%20source%20initiative&logoColor=%23FFFFFF&style=for-the-badge)](LICENSE.md)
 
 Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecosystem using [Homebridge](https://homebridge.io).
