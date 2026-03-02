@@ -10,6 +10,8 @@
 
 Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecosystem using [Homebridge](https://homebridge.io).
 
+> Originally based on [homebridge-unifi-access](https://github.com/hjdhjd/homebridge-unifi-access) by [HJD](https://github.com/hjdhjd), licensed under the ISC License. This fork has been substantially rewritten by [MP Consulting](https://github.com/mp-consulting).
+
 </div>
 
 ## Table of Contents
@@ -160,4 +162,4 @@ When mismatches are found, update the schemas in `tests/event-schemas.ts` (the s
 
 ## License
 
-[MIT](LICENSE.md)
+Original work by [HJD](https://github.com/hjdhjd) under [ISC](LICENSE.md). Modifications by Mickael Palma under [MIT](LICENSE.md).

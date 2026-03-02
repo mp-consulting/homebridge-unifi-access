@@ -5,7 +5,7 @@
   "description": "Complete HomeKit support for UniFi Access devices — locks, doorbells, sensors, and readers — with automatic device discovery and realtime events.",
   "author": "Mickael Palma",
   "homepage": "https://github.com/mp-consulting/homebridge-unifi-access#readme",
-  "license": "MIT",
+  "license": "(ISC AND MIT)",
   "funding": {
     "type": "paypal",
     "url": "https://paypal.me/mickaelpalma"
