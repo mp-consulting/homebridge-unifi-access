@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7 (2026-03-04)
+
+### Features
+
+- Gate opening triggered by a physical remote now initiates a full DPS-driven cycle in HomeKit: Opening → Open → (waits for gate to physically close) → Closing → Closed. Previously, a remote-triggered open jumped the GarageDoorOpener state directly to Open with no transition. Unlike the timer-driven cycle used for API/HomeKit triggers, this cycle waits for the DPS sensor to report close before transitioning, so HomeKit always reflects the real-world gate position regardless of how long the gate stays open.
+
 ## 1.0.6 (2026-03-04)
 
 ### Bug Fixes
