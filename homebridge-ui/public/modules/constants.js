@@ -2,13 +2,11 @@ export const SCREENS = [ 'discoveryScreen', 'setupScreen', 'controllersScreen', 
 export const PLUGIN_NAME = 'UniFi Access';
 
 export const CATEGORY_ICONS = {
-
-
-  AccessMethod: 'fa-fingerprint',
-  Controller: 'fa-server',
-  Device: 'fa-microchip',
-  Hub: 'fa-door-open',
-  Log: 'fa-file-alt',
+  AccessMethod: 'fingerprint',
+  Controller: 'server',
+  Device: 'cpu',
+  Hub: 'door-open',
+  Log: 'file-text',
 };
 
 export const CATEGORY_COLORS = {

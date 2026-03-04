@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.8 (2026-03-04)
+
+### Improvements
+
+- Config UI migrated to homebridge-ui-kit design system (Bootstrap 5.3 + Bootstrap Icons, shared kit.css/kit.js, `data-bs-theme="dark"` dark mode)
+- Standardize `.gitignore` and `.npmignore`
+
 ## 1.0.7 (2026-03-04)
 
 ### Features
