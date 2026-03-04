@@ -1,6 +1,6 @@
 {
   "name": "@mp-consulting/homebridge-unifi-access",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "displayName": "UniFi Access",
   "description": "Complete HomeKit support for UniFi Access devices — locks, doorbells, sensors, and readers — with automatic device discovery and realtime events.",
   "author": "Mickael Palma",

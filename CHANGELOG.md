@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.6 (2026-03-04)
+
+### Bug Fixes
+
+- Fix door names not showing in HomeKit for main gate (GarageDoorOpener) and side door (LockMechanism) services. HomeKit requires the `ConfiguredName` characteristic to display custom names — it was missing on these service types, causing HomeKit to fall back to generic defaults ("Garage Door", "Lock").
+- Fix `access-platform.test.ts` failing due to missing `@matter/nodejs` transitive dependency. The `APIEvent` const enum import from `homebridge` is now mocked to avoid triggering the full module resolution chain under esbuild.
+
 ## 1.0.5 (2026-03-01)
 
 ### Features

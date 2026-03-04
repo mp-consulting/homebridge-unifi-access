@@ -1,9 +1,24 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { createMockAPI, createMockAccessory } from './mocks/homebridge.js';
 import { createMockLog } from './mocks/controller.js';
-import { AccessPlatform } from '../src/access-platform.js';
 import { ACCESS_MQTT_TOPIC } from '../src/settings.js';
-import { APIEvent } from 'homebridge';
+
+// Mock homebridge to avoid the @matter/nodejs transitive dependency that fails to resolve under esbuild. APIEvent is a const enum whose values are inlined by
+// tsc but not by esbuild, so we provide the literal values here.
+vi.mock('homebridge', () => ({
+  APIEvent: {
+    DID_FINISH_LAUNCHING: 'didFinishLaunching',
+    SHUTDOWN: 'shutdown',
+  },
+}));
+
+import { AccessPlatform } from '../src/access-platform.js';
+
+// APIEvent values for assertions (matches the mock above).
+const APIEvent = {
+  DID_FINISH_LAUNCHING: 'didFinishLaunching',
+  SHUTDOWN: 'shutdown',
+} as const;
 
 describe('AccessPlatform', () => {
 

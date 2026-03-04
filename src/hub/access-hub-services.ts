@@ -542,6 +542,14 @@ function configureLock(hub: AccessHub): boolean {
   hub._hkLockState = -1;
   service.displayName = hub.accessoryName;
   service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName);
+
+  // Ensure ConfiguredName is available and set — HomeKit uses this over Name for display.
+  if(!service.testCharacteristic(hub.hap.Characteristic.ConfiguredName)) {
+
+    service.addOptionalCharacteristic(hub.hap.Characteristic.ConfiguredName);
+  }
+
+  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName);
   hub.hkLockState = hubLockState(hub);
 
   service.setPrimaryService(true);
@@ -787,6 +795,14 @@ function configureSideDoorLock(hub: AccessHub): boolean {
   hub._hkSideDoorLockState = -1;
   service.displayName = hub.accessoryName + ' Side Door';
   service.updateCharacteristic(hub.hap.Characteristic.Name, hub.accessoryName + ' Side Door');
+
+  // Ensure ConfiguredName is available and set — HomeKit uses this over Name for display.
+  if(!service.testCharacteristic(hub.hap.Characteristic.ConfiguredName)) {
+
+    service.addOptionalCharacteristic(hub.hap.Characteristic.ConfiguredName);
+  }
+
+  service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, hub.accessoryName + ' Side Door');
   hub.hkSideDoorLockState = hubLockState(hub, true);
 
   return true;
