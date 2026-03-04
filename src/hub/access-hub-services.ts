@@ -56,6 +56,39 @@ function startGateCycle(hub: AccessHub): void {
   }, phaseDuration * 2));
 }
 
+// Start a DPS-driven gate cycle for external triggers (physical remote, manual override). Unlike startGateCycle which uses fixed timers for all
+// three phases, this only animates Opening → Open and then waits for the DPS sensor to drive the Closing → Closed transition when the gate
+// physically closes. This ensures HomeKit accurately reflects the real-world gate position rather than guessing closing timing with a timer.
+function startExternalGateCycle(hub: AccessHub): void {
+
+  hub.clearGatePhaseTimers();
+
+  const phaseDuration = hub.gateDirectionDuration / 3;
+
+  hub.gateDirection = 'opening';
+  hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
+
+  hub.log.debug('External gate cycle started: Opening → Open (%.0fs) → waiting for DPS close.', phaseDuration / 1000);
+
+  const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
+
+  // Push initial Opening state.
+  if(gdoService) {
+
+    gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.OPEN);
+    gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPENING);
+  }
+
+  // Phase 2: transition to Open after a brief opening animation. No closing phase timer — the hkDpsState setter detects DPS close during the 'open' phase and
+  // transitions to Closing automatically, then the dps:changed handler finalizes to Closed.
+  hub.gatePhaseTimers.push(setTimeout(() => {
+
+    hub.gateDirection = 'open';
+    hub.log.debug('External gate cycle phase: Open — waiting for DPS close.');
+    gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPEN);
+  }, phaseDuration));
+}
+
 // Configure all HomeKit services on the hub. Called once at device setup.
 export function configureServices(hub: AccessHub): void {
 
@@ -226,15 +259,20 @@ export function registerServiceReactions(hub: AccessHub): void {
       return;
     }
 
-    // No active gate cycle — update GDO state directly from DPS.
-    hub.log.debug('Gate DPS update (no active cycle): %s.', isClosed(hub, data.value) ? 'Closed' : 'Open');
-    const doorState = data.value === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ?
-      hub.hap.Characteristic.CurrentDoorState.CLOSED : hub.hap.Characteristic.CurrentDoorState.OPEN;
-    const targetState = data.value === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ?
-      hub.hap.Characteristic.TargetDoorState.CLOSED : hub.hap.Characteristic.TargetDoorState.OPEN;
+    // No active gate cycle — if DPS reports open, an external trigger (physical remote, manual override) opened the gate. Start a DPS-driven gate cycle that
+    // animates Opening → Open, then waits for the DPS sensor to report close for the Closing → Closed transition.
+    if(!isClosed(hub, data.value)) {
 
-    service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, targetState);
-    service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, doorState);
+      hub.log.debug('Gate DPS open detected (no active cycle) — starting external gate cycle.');
+      startExternalGateCycle(hub);
+
+      return;
+    }
+
+    // DPS reports closed with no active cycle — update GDO state directly.
+    hub.log.debug('Gate DPS update (no active cycle): Closed.');
+    service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
+    service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSED);
   });
 
   // React to doorbell ring events by updating the doorbell trigger switch.
