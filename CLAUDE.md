@@ -68,7 +68,7 @@ homebridge-ui/                  # Custom config UI with discovery wizard
 - Single quotes, 2-space indent, semicolons required
 - Trailing commas in multiline, max line length 160
 - Unix line endings, object curly spacing
-- Copyright headers: `Copyright(C) 2026, Mickael Palma`
+- Copyright headers: dual-line — `Copyright(C) 2017-2026, HJD` then `Copyright(C) 2026, Mickael Palma / MP Consulting`
 
 ## Git Settings
 

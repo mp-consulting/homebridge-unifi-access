@@ -1,4 +1,5 @@
-/* Copyright(C) 2026, Mickael Palma. All rights reserved.
+/* Copyright(C) 2017-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+ * Copyright(C) 2026, Mickael Palma / MP Consulting. All rights reserved.
  *
  * access-hub-services.ts: HomeKit service configuration and state-change reactions for the UniFi Access hub.
  */

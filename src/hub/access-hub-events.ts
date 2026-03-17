@@ -1,4 +1,5 @@
-/* Copyright(C) 2026, Mickael Palma. All rights reserved.
+/* Copyright(C) 2017-2026, HJD (https://github.com/hjdhjd). All rights reserved.
+ * Copyright(C) 2026, Mickael Palma / MP Consulting. All rights reserved.
  *
  * access-hub-events.ts: External event parsing for the UniFi Access hub. Parses UniFi Access API events and updates hub state.
  * MQTT publishing and logging are handled automatically by the hub event bus subscribers.
