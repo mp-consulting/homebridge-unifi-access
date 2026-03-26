@@ -7,7 +7,7 @@ Homebridge plugin (`@mp-consulting/homebridge-unifi-access`) providing HomeKit s
 ## Tech Stack
 
 - **Language**: TypeScript (strict, ES2022, ESM via NodeNext)
-- **Runtime**: Node.js >= 18, Homebridge >= 1.8.0
+- **Runtime**: Node.js >= 20, Homebridge >= 1.8.0
 - **Testing**: Vitest with v8 coverage
 - **Linting**: ESLint 9 flat config with typescript-eslint
 - **Key deps**: `unifi-access` (API client), `homebridge-plugin-utils` (HBUP utilities)

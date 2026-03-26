@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.10 (2026-03-26)
+
+### Improvements
+
+- Bump minimum Node.js requirement from 18 to 20
+- Update `author` field to MP Consulting object format
+- Bump `@types/node` to ^25.0.10
+- Add `undici` 7.24.6 override to fix high-severity audit vulnerabilities
+- Add `class-validator` dev dependency (required by homebridge-config-ui-x)
+- Add `--passWithNoTests` flag to test script
+- Add `*.mjs` glob to ESLint browser config for consistency
+
+### Bug Fixes
+
+- Fix event-schema-monitor crash: import path referenced `tests/` (plural) instead of `test/` (singular)
+- Fix event-schema-monitor config parser not finding credentials when platform config is at the root level
+- Fix test Homebridge config structure: platform config must be nested inside `platforms[]` array
+
 ## [1.0.9] - 2026-03-05
 
 ### Fixed

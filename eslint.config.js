@@ -56,7 +56,7 @@ export default tseslint.config(
   },
   // homebridge-ui browser globals
   {
-    files: ['homebridge-ui/public/**/*.js'],
+    files: ['homebridge-ui/public/**/*.mjs', 'homebridge-ui/public/**/*.js'],
     languageOptions: {
       globals: {
         document: 'readonly',

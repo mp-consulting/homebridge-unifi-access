@@ -21,11 +21,11 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   eventSchemas, packetEnvelopeSchema, validateSchema, type SchemaIssue,
-} from '../tests/event-schemas.js';
+} from '../test/event-schemas.js';
 
 // ---- Config file loading ----
 
-const DEFAULT_CONFIG_PATH = join(import.meta.dirname ?? '.', '..', 'tests', 'hbConfig', 'config.json');
+const DEFAULT_CONFIG_PATH = join(import.meta.dirname ?? '.', '..', 'test', 'hbConfig', 'config.json');
 
 // Read controller credentials from a Homebridge config.json file.
 function loadFromConfig(configPath: string): { address: string; username: string; password: string } | undefined {
@@ -36,10 +36,13 @@ function loadFromConfig(configPath: string): { address: string; username: string
   }
 
   const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+    controllers?: { address?: string; password?: string; username?: string }[];
+    platform?: string;
     platforms?: { controllers?: { address?: string; password?: string; username?: string }[]; platform?: string }[];
   };
 
-  const platform = raw.platforms?.find(p => p.platform === 'UniFi Access');
+  // Support both top-level platform config and nested platforms[] array.
+  const platform = raw.platform === 'UniFi Access' ? raw : raw.platforms?.find(p => p.platform === 'UniFi Access');
   const controller = platform?.controllers?.[0];
 
   if(!controller?.address || !controller?.username || !controller?.password) {
@@ -126,7 +129,7 @@ const UPDATE_GUIDES: Record<string, { description: string; files: string[] }> = 
   'data_schema': {
     description: 'Event payload schema changed',
     files: [
-      'tests/event-schemas.ts              — update the SchemaDefinition for this event type',
+      'test/event-schemas.ts              — update the SchemaDefinition for this event type',
       'src/hub/access-hub-types.ts          — update the TypeScript interface if the plugin uses this field',
     ],
   },
@@ -134,14 +137,14 @@ const UPDATE_GUIDES: Record<string, { description: string; files: string[] }> = 
   'envelope_schema': {
     description: 'Event envelope structure changed',
     files: [
-      'tests/event-schemas.ts              — update packetEnvelopeSchema',
+      'test/event-schemas.ts              — update packetEnvelopeSchema',
     ],
   },
 
   'unknown_event': {
     description: 'New event type discovered',
     files: [
-      'tests/event-schemas.ts              — add a new SchemaDefinition + entry in eventSchemas',
+      'test/event-schemas.ts              — add a new SchemaDefinition + entry in eventSchemas',
       'src/access-types.ts                 — add the event string to AccessEventType enum (if the plugin should handle it)',
       'src/hub/access-hub-events.ts        — add a handler in registerEventHandlers (if the plugin should react to it)',
     ],

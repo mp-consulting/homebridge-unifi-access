@@ -1,11 +1,26 @@
 {
-    "platform": "UniFi Access",
-    "name": "UniFi Access",
-    "controllers": [
+    "bridge": {
+        "name": "Homebridge Dev",
+        "username": "CC:22:3D:E3:CE:30",
+        "port": 51826,
+        "pin": "031-45-154"
+    },
+    "platforms": [
         {
-            "address": "1.2.3.4",
-            "username": "homebridge",
-            "password": "your-password-here"
+            "platform": "UniFi Access",
+            "name": "UniFi Access",
+            "controllers": [
+                {
+                    "address": "1.2.3.4",
+                    "username": "homebridge",
+                    "password": "your-password-here"
+                }
+            ]
+        },
+        {
+            "name": "Config",
+            "port": 8581,
+            "platform": "config"
         }
     ]
 }

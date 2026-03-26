@@ -55,7 +55,7 @@ This plugin discovers all your supported UniFi Access devices and makes them ava
 ## Prerequisites
 
 - [Homebridge](https://homebridge.io) >= 1.8.0
-- Node.js >= 18
+- Node.js >= 20
 - A UniFi Access controller running the **latest stable firmware**
 - A local user account on the controller (recommended over Ubiquiti cloud credentials; 2FA is not supported)
 
@@ -92,7 +92,7 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 }
 ```
 
-> A sample configuration file is available at [`config.sample.json`](tests/fixtures/config.sample.json).
+> A sample configuration file is available at [`config.sample.json`](test/hbConfig/config.sample.json).
 
 ### Optional Settings
 
@@ -136,7 +136,7 @@ npm run watch
 A live monitoring script is included to detect UniFi Access API changes across firmware updates. It connects to a controller, listens to real-time events, and validates each message against known schemas — reporting any new fields, missing fields, or type changes.
 
 ```sh
-# Uses credentials from tests/hbConfig/config.json
+# Uses credentials from test/hbConfig/config.json
 npm run monitor:events
 
 # Or point to a different Homebridge config
@@ -158,7 +158,7 @@ Sample output:
   + data.new_field: unexpected_field — Type: string
 ```
 
-When mismatches are found, update the schemas in `tests/event-schemas.ts` (the single source of truth) and the type definitions in `src/hub/access-hub-types.ts` to match the new API.
+When mismatches are found, update the schemas in `test/event-schemas.ts` (the single source of truth) and the type definitions in `src/hub/access-hub-types.ts` to match the new API.
 
 ## License
 
