@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.11] - 2026-03-30
+
+### Changed
+
+- **Dependencies**: Updated all dependencies to latest versions including `@homebridge/plugin-ui-utils` 2.2.3, `homebridge-plugin-utils` 1.33.0, `eslint` ^10.1.0, `typescript` ^6.0.2, `vitest` ^4.1.2, and other dev dependencies.
+
 ## 1.0.10 (2026-03-26)
 
 ### Improvements
