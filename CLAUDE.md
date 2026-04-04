@@ -62,6 +62,7 @@ homebridge-ui/                  # Custom config UI with discovery wizard
 - **Feature options**: Per-device and per-controller capability toggles via `homebridge-plugin-utils`
 - **Device catalog**: Maps device models (DPS, REL, REN, REX) to capabilities
 - **Per-door naming**: Multi-door hubs (UA Gate) expose individual door accessories
+- **Custom UI**: Uses Homebridge custom UI framework (`homebridge-ui/`) for plugin configuration management
 
 ## Code Style
 
