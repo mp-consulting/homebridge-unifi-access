@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.14] - 2026-04-17
+
+### Changed
+
+- **Dependencies**: Updated all dependencies to latest versions, including `homebridge-plugin-utils` (1.33→1.35)
+
 ## [1.0.13] - 2026-04-04
 
 ### Changed
