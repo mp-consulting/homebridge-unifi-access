@@ -78,6 +78,7 @@ export interface DeviceCatalogEntry {
 // UGT port and extension identifiers used when mapping physical doors to location IDs.
 export const UGT_MAIN_PORT_SOURCE_ID = 'port1';
 export const UGT_SIDE_PORT_SOURCE_ID = 'port2';
+export const UGT_MAIN_DOOR_TARGET_NAME = 'oper1';
 export const UGT_SIDE_DOOR_TARGET_NAME = 'oper2';
 
 // The device catalog, keyed by device_type. This is the single source of truth for all device-specific knowledge in the plugin.

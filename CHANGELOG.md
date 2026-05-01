@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.15] - 2026-05-01
+
+### Fixed
+
+- **UA Gate door discovery**: For multi-door UA Hub Gate setups, the plugin now resolves the main and side doors from the device's `port_setting` extensions (the controller's source of truth for which physical doors are wired to oper1/oper2). Orphan or stale door records left in the controller after renames or rebindings are now ignored, so the HomeKit unlock targets the correct relay and the correct UniFi door name is used.
+- **GarageDoorOpener log**: Configuration log now includes the door name (e.g. "Configuring Portail as GarageDoorOpener service.") to match the existing side-door log style.
+
+### Internal
+
+- Added an info-level discovery summary on startup ("Discovered main door: … side door: …") and debug-level diagnostic logs for door/extension data.
+- `logsInsightsAddSchema` now accepts the optional `data.id` field emitted by recent UniFi Access controller versions.
+
 ## [1.0.14] - 2026-04-17
 
 ### Changed

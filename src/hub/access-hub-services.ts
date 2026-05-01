@@ -559,7 +559,7 @@ function configureLock(hub: AccessHub): boolean {
 
   // Acquire the service.
   const service = acquireService(hub.accessory, selectedService, hub.accessoryName, undefined,
-    () => hub.log.info('Configuring door as %s service.', currentServiceType));
+    () => hub.log.info('Configuring %s as %s service.', hub.mainDoorName ?? 'door', currentServiceType));
 
   if(!service) {
 

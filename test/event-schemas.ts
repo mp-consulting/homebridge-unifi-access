@@ -164,6 +164,7 @@ export const logsAddSchema: SchemaDefinition = {
 export const logsInsightsAddSchema: SchemaDefinition = {
 
   'event_type':               { required: true,  type: 'string' },
+  'id':                       { required: false, type: 'string' },
   'log_key':                  { required: true,  type: 'string' },
   'message':                  { required: true,  type: 'string' },
   'metadata':                 { required: false, type: 'object' },

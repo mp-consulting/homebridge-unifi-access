@@ -3,10 +3,13 @@
  *
  * access-hub-api.ts: Hub API commands and door discovery for the UniFi Access hub.
  */
-import { UGT_SIDE_DOOR_TARGET_NAME } from '../access-device-catalog.js';
+import {
+  UGT_MAIN_DOOR_TARGET_NAME, UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_DOOR_TARGET_NAME, UGT_SIDE_PORT_SOURCE_ID,
+} from '../access-device-catalog.js';
 import { AccessReservedNames } from '../access-types.js';
 import { AUTO_LOCK_DELAY_MS } from './access-hub-types.js';
 import type { AccessHub } from './access-hub.js';
+import { normalizeMac } from '../settings.js';
 import { toDpsState, toLockState } from './access-hub-utils.js';
 
 // Unified utility function to execute lock and unlock actions on a hub door.
@@ -105,6 +108,16 @@ export function discoverDoorNames(hub: AccessHub): void {
 
   const doors = hub.controller.udaApi.doors ?? [];
 
+  // Collect every port_setting extension. Each entry's target_value is the unique_id of a door physically wired to this hub. source_id (port1/port2)
+  // and target_name (door name on newer firmware, or oper1/oper2 on older firmware) help differentiate which relay each door is on.
+  const portSettings = hub.uda.extensions?.filter(e => e.extension_name === 'port_setting') ?? [];
+
+  hub.log.debug('Door discovery: %d door(s) in API: %s', doors.length,
+    JSON.stringify(doors.map(d => ({ id: d.unique_id, name: d.name, devices: d.device_groups?.map(g => g.mac) ?? [] }))));
+  hub.log.debug('Door discovery: hub.mac=%s, hub.uda.door=%s, port_setting extensions=%s', hub.uda.mac,
+    JSON.stringify(hub.uda.door ? { id: hub.uda.door.unique_id, name: hub.uda.door.name } : null),
+    JSON.stringify(portSettings.map(e => ({ source_id: e.source_id, target_name: e.target_name, target_value: e.target_value }))));
+
   if(doors.length === 0) {
 
     hub.log.warn('No doors found in Access API. Door event handling may not work correctly.');
@@ -112,57 +125,72 @@ export function discoverDoorNames(hub: AccessHub): void {
     return;
   }
 
-  // Get the primary door ID from device config (may be undefined).
-   
-  const primaryDoorId = hub.uda.door?.unique_id;
+  // Restrict candidates to doors actually wired to this hub. Two sources, in order of reliability:
+  //   1. port_setting extension target_values — the relay/door wiring the controller stores per UA Gate device.
+  //   2. door.device_groups containing the hub's MAC — present on some firmware versions.
+  // If neither narrows the list, fall back to all doors.
+  const wiredDoorIds = new Set(portSettings.map(e => e.target_value).filter((v): v is string => Boolean(v)));
+  const hubMac = normalizeMac(hub.uda.mac);
+  const wiredDoors = wiredDoorIds.size ? doors.filter(d => wiredDoorIds.has(d.unique_id)) : [];
+  const macDoors = wiredDoors.length ? [] : doors.filter(d => d.device_groups?.some(dev => dev.mac && (normalizeMac(dev.mac) === hubMac)));
+  const candidates = wiredDoors.length ? wiredDoors : (macDoors.length ? macDoors : doors);
 
-  // Strategy 1: Use the device's bound door as main door.
-  if(primaryDoorId) {
-
-    hub.mainDoorLocationId = primaryDoorId;
-  } else if(doors.length >= 1) {
-
-    // Strategy 2: Look for a door named like "main", "gate", "portail" (but not side/pedestrian).
-    const mainDoor = doors.find(door =>
-      /portail|main|gate|principal|entry|front/i.test(door.name) && !/portillon|side|pedestrian|pieton|wicket|back/i.test(door.name));
-
-    // Strategy 3: Use the first door as main door.
-    hub.mainDoorLocationId = mainDoor?.unique_id ?? doors[0].unique_id;
-  }
-
-  // Store the main door name for HomeKit service naming.
-  hub.mainDoorName = doors.find(d => d.unique_id === hub.mainDoorLocationId)?.name;
-
-  // Find the side door (if enabled).
+  // Identify side door first so the main door can be deduced by exclusion when needed.
   if(hub.hints.hasSideDoor) {
 
-    // Strategy 1: Check extensions for oper2 port setting.
-    const sideDoorFromExt = hub.uda.extensions?.find(ext => (ext.extension_name === 'port_setting') && (ext.target_name === UGT_SIDE_DOOR_TARGET_NAME))?.target_value;
+    // Strategy 1: port_setting extension keyed by source_id 'port2' (oper2 relay).
+    const sideExt = portSettings.find(e => (e.source_id === UGT_SIDE_PORT_SOURCE_ID) || (e.target_name === UGT_SIDE_DOOR_TARGET_NAME));
 
-    if(sideDoorFromExt) {
+    if(sideExt?.target_value && candidates.some(d => d.unique_id === sideExt.target_value)) {
 
-      hub.sideDoorLocationId = sideDoorFromExt;
+      hub.sideDoorLocationId = sideExt.target_value;
     } else {
 
       // Strategy 2: Look for a door named like "side", "portillon", "pedestrian".
-      const sideDoor = doors.find(door =>
-        (door.unique_id !== hub.mainDoorLocationId) && /portillon|side|pedestrian|pieton|wicket|back|secondary/i.test(door.name));
-
-      if(sideDoor) {
-
-        hub.sideDoorLocationId = sideDoor.unique_id;
-      } else if(doors.length === 2) {
-
-        // Strategy 3: If we have exactly 2 doors, the other one is the side door.
-        const otherDoor = doors.find(door => door.unique_id !== hub.mainDoorLocationId);
-
-        hub.sideDoorLocationId = otherDoor?.unique_id;
-      }
+      hub.sideDoorLocationId = candidates.find(door => /portillon|side|pedestrian|pieton|wicket|back|secondary/i.test(door.name))?.unique_id;
     }
-
-    // Store the side door name for HomeKit service naming.
-    hub.sideDoorName = doors.find(d => d.unique_id === hub.sideDoorLocationId)?.name;
   }
+
+  // Identify main door from remaining candidates (every hub-bound door except the side door).
+  const mainCandidates = candidates.filter(d => d.unique_id !== hub.sideDoorLocationId);
+
+  // Strategy 1: port_setting extension keyed by source_id 'port1' (oper1 relay).
+  const mainExt = portSettings.find(e => (e.source_id === UGT_MAIN_PORT_SOURCE_ID) || (e.target_name === UGT_MAIN_DOOR_TARGET_NAME));
+
+  if(mainExt?.target_value && mainCandidates.some(d => d.unique_id === mainExt.target_value)) {
+
+    hub.mainDoorLocationId = mainExt.target_value;
+  } else if(mainCandidates.length === 1) {
+
+    // Strategy 2: With the side door identified, the only remaining candidate is the main door.
+    hub.mainDoorLocationId = mainCandidates[0].unique_id;
+  } else if(mainCandidates.length > 1) {
+
+    // Strategy 3: Look for a door named like "main", "portail", "principal" (excluding side/pedestrian patterns).
+    const mainByRegex = mainCandidates.find(door =>
+      /portail|main|principal|entry|front|gate/i.test(door.name) && !/portillon|side|pedestrian|pieton|wicket|back/i.test(door.name));
+
+    // Strategy 4: Fall back to the device's bound door reference, but only if it's a valid candidate.
+    const boundDoor = hub.uda.door?.unique_id;
+    const boundIsCandidate = boundDoor !== undefined && mainCandidates.some(d => d.unique_id === boundDoor);
+
+    // Strategy 5: First candidate.
+    hub.mainDoorLocationId = mainByRegex?.unique_id ?? (boundIsCandidate ? boundDoor : mainCandidates[0].unique_id);
+  }
+
+  // If we still don't have a side door but had hasSideDoor, deduce from leftover candidate (when there are 2 total).
+  if(hub.hints.hasSideDoor && !hub.sideDoorLocationId && (candidates.length === 2)) {
+
+    hub.sideDoorLocationId = candidates.find(d => d.unique_id !== hub.mainDoorLocationId)?.unique_id;
+  }
+
+  // Resolve names from the doors list.
+  hub.mainDoorName = doors.find(d => d.unique_id === hub.mainDoorLocationId)?.name;
+  hub.sideDoorName = hub.hints.hasSideDoor ? doors.find(d => d.unique_id === hub.sideDoorLocationId)?.name : undefined;
+
+  hub.log.info('Discovered main door: %s (id=%s)%s.',
+    hub.mainDoorName ?? '(unnamed)', hub.mainDoorLocationId ?? '(none)',
+    hub.hints.hasSideDoor ? ', side door: ' + (hub.sideDoorName ?? '(unnamed)') + ' (id=' + (hub.sideDoorLocationId ?? '(none)') + ')' : '');
 }
 
 // Initialize door states from the API bootstrap data and propagate names to HomeKit services. Must be called after services are configured.
