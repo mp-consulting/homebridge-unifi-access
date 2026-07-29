@@ -25,6 +25,7 @@ export interface AccessControllerOptions {
   name?: string;
   username: string;
   password: string;
+  verifyTls?: boolean;
 }
 
 // HBUA's webUI makes use of additional metadata to only surface the feature options relevant for a particular device. These properties provide that metadata.

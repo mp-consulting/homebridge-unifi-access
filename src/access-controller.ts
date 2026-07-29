@@ -107,8 +107,9 @@ export class AccessController {
       warn: (message: string, ...parameters: unknown[]): void => this.platform.log.warn(util.format(message, ...parameters)),
     };
 
-    // Create our connection to the Access API.
-    this.udaApi = new AccessApi(udaLog);
+    // Create our connection to the Access API. TLS certificate validation is off by default since UniFi controllers ship with self-signed certificates, but
+    // setups with proper certificates can opt in through the verifyTls controller option.
+    this.udaApi = new AccessApi(udaLog, { verifyTls: this.config.verifyTls === true });
 
     // Attempt to login to the Access controller, retrying at reasonable intervals. This accounts for cases where the Access controller or the network
     // connection may not be fully available when we startup.

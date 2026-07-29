@@ -37,6 +37,12 @@ export interface RetrieveOptions {
   timeout?: number;
 }
 
+// Options to tailor the behavior of the Access API client.
+export interface AccessApiOptions {
+
+  verifyTls?: boolean;
+}
+
 /**
  * The UniFi Access API is partially documented through an officially supported public API that Ubiquiti has released, and this implementation provides the
  * additional subset of the native API that the plugin needs: login, bootstrap enumeration, device unlocks, and the realtime notification events WebSocket.
@@ -67,12 +73,17 @@ export class AccessApi extends EventEmitter {
   private log: HomebridgePluginLogging;
   private password: string;
   private username: string;
+  private verifyTls: boolean;
 
   // Initialize this instance with our login information.
-  constructor(log?: HomebridgePluginLogging) {
+  constructor(log?: HomebridgePluginLogging, options: AccessApiOptions = {}) {
 
     // Initialize our parent.
     super();
+
+    // UniFi controllers ship with self-signed certificates, so we skip TLS certificate validation by default. Setups with proper certificates can opt in to
+    // strict validation.
+    this.verifyTls = options.verifyTls ?? false;
 
     // If we didn't get passed a logging parameter, by default we log to the console.
     log ??= {
@@ -337,7 +348,7 @@ export class AccessApi extends EventEmitter {
     try {
 
       const ws = new WebSocketClient('wss://' + this.address + '/proxy/access/api/v2/ws/notification',
-        { headers: { Cookie: this.headers.cookie ?? '' }, rejectUnauthorized: false });
+        { headers: { Cookie: this.headers.cookie ?? '' }, rejectUnauthorized: this.verifyTls });
 
       // Cleanup after ourselves if our websocket closes for some reason.
       ws.once('close', () => {
@@ -560,7 +571,7 @@ export class AccessApi extends EventEmitter {
       this.agent?.destroy();
 
       // Create a connection pool that explicitly allows self-signed SSL certificates and allows up to five connections at a time.
-      this.agent = new https.Agent({ keepAlive: true, maxSockets: 5, rejectUnauthorized: false });
+      this.agent = new https.Agent({ keepAlive: true, maxSockets: 5, rejectUnauthorized: this.verifyTls });
     }
   }
 
