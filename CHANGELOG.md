@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Zero runtime dependencies**: The plugin no longer depends on any external npm packages at runtime. The `unifi-access` API client has been replaced by a minimal in-repo implementation (`src/unifi/`) covering login, bootstrap enumeration, device unlocks, and the realtime events WebSocket. The `homebridge-plugin-utils` utilities (feature options engine, MQTT client, HomeKit service helpers, and general utilities) and the `@homebridge/plugin-ui-utils` UI server base class are now implemented in-repo (`src/lib/`), including dependency-free HTTPS, WebSocket (RFC 6455), and MQTT 3.1.1 clients built exclusively on Node.js built-ins.
+
 ## [1.0.15] - 2026-05-01
 
 ### Fixed

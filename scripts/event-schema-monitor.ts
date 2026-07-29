@@ -14,8 +14,8 @@
  *   npx tsx scripts/event-schema-monitor.ts --address <ip> --username <u> --password <p>  # explicit credentials
  *   npx tsx scripts/event-schema-monitor.ts --dump                                # save raw event payloads to tmp/events/
  */
-import { AccessApi } from 'unifi-access';
-import type { AccessEventPacket } from 'unifi-access';
+import { AccessApi } from '../src/unifi/index.js';
+import type { AccessEventPacket } from '../src/unifi/index.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';

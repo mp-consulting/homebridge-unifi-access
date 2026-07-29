@@ -109,7 +109,6 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 - [Feature Options](docs/feature-options.md) - show/hide devices and customize behavior
 - [MQTT](docs/mqtt.md) - configure MQTT event publishing
 - [Events](docs/events.md) - UniFi Access event types and payloads
-- [UniFi Access API](https://www.npmjs.com/package/unifi-access) - native API library
 - [Changelog](CHANGELOG.md) - release notes and version history
 
 ## Contributing

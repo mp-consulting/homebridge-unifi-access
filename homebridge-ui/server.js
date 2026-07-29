@@ -6,8 +6,8 @@
 'use strict';
 
 import { featureOptionCategories, featureOptions } from '../dist/access-options.js';
-import { AccessApi } from 'unifi-access';
-import { HomebridgePluginUiServer } from '@homebridge/plugin-ui-utils';
+import { AccessApi } from '../dist/unifi/index.js';
+import { HomebridgePluginUiServer } from '../dist/lib/ui-server.js';
 import dgram from 'node:dgram';
 import https from 'node:https';
 import os from 'node:os';

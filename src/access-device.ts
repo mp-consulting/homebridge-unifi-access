@@ -5,8 +5,8 @@
  */
 import { ACCESS_MOTION_DURATION, ACCESS_OCCUPANCY_DURATION, HK_CHARACTERISTIC_REVERT_DELAY_MS, createPrefixedLogger, normalizeMac } from './settings.js';
 import type { API, CharacteristicValue, HAP, PlatformAccessory } from 'homebridge';
-import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from 'unifi-access';
-import { type HomebridgePluginLogging, type Nullable, sanitizeName } from 'homebridge-plugin-utils';
+import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from './unifi/index.js';
+import { type HomebridgePluginLogging, type Nullable, sanitizeName } from './lib/index.js';
 import type { AccessController } from './access-controller.js';
 import type { AccessPlatform } from './access-platform.js';
 import { AccessReservedNames } from './access-types.js';

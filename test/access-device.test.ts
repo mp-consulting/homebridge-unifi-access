@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AccessDevice } from '../src/access-device.js';
-import type { AccessDeviceConfig } from 'unifi-access';
+import type { AccessDeviceConfig } from '../src/unifi/index.js';
 import { AccessReservedNames } from '../src/access-types.js';
 import { ACCESS_MOTION_DURATION, ACCESS_OCCUPANCY_DURATION } from '../src/settings.js';
 import { createMockController } from './mocks/controller.js';

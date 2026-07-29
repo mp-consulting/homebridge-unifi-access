@@ -1,6 +1,6 @@
 /* Mock UniFi Access API objects for testing. */
 import { vi } from 'vitest';
-import type { AccessDeviceConfig, AccessEventPacket } from 'unifi-access';
+import type { AccessDeviceConfig, AccessEventPacket } from '../../src/unifi/index.js';
 import type { AccessEventType } from '../../src/access-types.js';
 
 // Create a mock device config for a specific device type.

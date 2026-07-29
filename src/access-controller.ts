@@ -7,8 +7,8 @@ import {
   ACCESS_CONTROLLER_REFRESH_INTERVAL, ACCESS_CONTROLLER_RETRY_INTERVAL, PLATFORM_NAME, PLUGIN_NAME, createPrefixedLogger, isValidAddress, normalizeMac,
 } from './settings.js';
 import type { API, HAP, PlatformAccessory } from 'homebridge';
-import { AccessApi, type AccessControllerConfig, type AccessDeviceConfig } from 'unifi-access';
-import { type HomebridgePluginLogging, MqttClient, type Nullable, retry, sanitizeName, sleep } from 'homebridge-plugin-utils';
+import { AccessApi, type AccessControllerConfig, type AccessDeviceConfig } from './unifi/index.js';
+import { type HomebridgePluginLogging, MqttClient, type Nullable, retry, sanitizeName, sleep } from './lib/index.js';
 import type { AccessControllerOptions } from './access-options.js';
 import type { AccessDevice } from './access-device.js';
 import { AccessEventType } from './access-types.js';
