@@ -13,6 +13,9 @@ export type DeepPartial<T> = {
 // Convenience shorthand for a nullable type.
 export type Nullable<T> = T | null;
 
+// Utility type that makes all properties of a type optional except the ones specified, which are required.
+export type PartialWithId<T, K extends keyof T> = Partial<T> & Pick<T, K>;
+
 // Logging interface used throughout the plugin so we can accept both Homebridge and custom loggers.
 export interface HomebridgePluginLogging {
 
@@ -24,6 +27,29 @@ export interface HomebridgePluginLogging {
 
 // Validates a name against HomeKit's naming conventions. Compiled once at module scope since this sits on the fast path of sanitizeName().
 const VALID_HOMEKIT_NAME = /^(?!.*\p{Extended_Pictographic})(?!.* {2})(?=^[\p{L}\p{N}].*[\p{L}\p{N}.]$)[\p{L}\p{N}\-"'.,#& ]+$/u;
+
+// A utility method that formats a bitrate value into a human-readable form as bps, kbps, or Mbps.
+export function formatBps(value: number): string {
+
+  // Return the bitrate as-is.
+  if(value < 1000) {
+
+    return value.toString() + ' bps';
+  }
+
+  // Return the bitrate in kilobits.
+  if(value < 1000000) {
+
+    const kbps = value / 1000;
+
+    return ((kbps % 1) === 0 ? kbps.toFixed(0) : kbps.toFixed(1)) + ' kbps';
+  }
+
+  // Return the bitrate in megabits.
+  const mbps = value / 1000000;
+
+  return ((mbps % 1) === 0 ? mbps.toFixed(0) : mbps.toFixed(1)) + ' Mbps';
+}
 
 // Retry an asynchronous operation at a given interval, optionally up to a total number of retries. The operation must resolve to true when successful.
 export async function retry(operation: () => Promise<boolean>, retryInterval: number, totalRetries?: number): Promise<boolean> {

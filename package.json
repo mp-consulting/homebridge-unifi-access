@@ -85,7 +85,6 @@
     "vitest": "^4.1.5"
   },
   "overrides": {
-    "@types/readable-stream": "4.0.23",
-    "undici": "7.28.0"
+    "@types/readable-stream": "4.0.23"
   }
 }

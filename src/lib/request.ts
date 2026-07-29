@@ -3,7 +3,7 @@
  *
  * request.ts: Minimal, dependency-free HTTPS request utility built on Node's https module.
  */
-import type http from 'node:http';
+import http from 'node:http';
 import https from 'node:https';
 import { sleep } from './util.js';
 
@@ -49,7 +49,9 @@ function requestOnce(url: string, options: RequestOptions): Promise<RequestRespo
 
   return new Promise((resolve, reject) => {
 
-    const req = https.request(url, {
+    const requestFn = url.startsWith('http://') ? http.request : https.request;
+
+    const req = requestFn(url, {
 
       agent: options.agent,
       headers: Object.fromEntries(Object.entries(options.headers ?? {}).filter(([ , value ]) => value !== undefined)) as Record<string, string>,
