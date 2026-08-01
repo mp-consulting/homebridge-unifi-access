@@ -17,8 +17,8 @@ packages at specific versions, and this document records exactly where each piec
 Upstream `unifi-access` was built on undici. The port replaces that transport with in-repo primitives:
 
 - undici `Pool` with `connect: { rejectUnauthorized: false }` → `https.Agent({ keepAlive: true, maxSockets: 5, rejectUnauthorized })`, recreated in `reset()`.
-- undici's retry interceptor → the retry policy in `src/lib/request.ts`: `{ factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: [ 429,
-  500, 502, 503, 504 ] }`.
+- undici's retry interceptor → the retry policy in `src/lib/request.ts`: `{ factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: [ 400,
+  404, 429, 500, 502, 503, 504 ] }`, matching the status codes upstream retried (UniFi OS transiently returns 400 and 404 while services restart).
 - undici error classes → Node error `.code` checks (`ECONNREFUSED`, `ECONNRESET`, `ENOTFOUND`, `EHOSTDOWN`), with timeouts driven by an `AbortController`.
 - undici `WebSocket` → `src/lib/websocket.ts`, an RFC 6455 client on Node's `http(s)` upgrade mechanism supporting self-signed TLS endpoints.
 - The undici user-agent interceptor → a `user-agent` header set during header initialization in `logout()`.
@@ -36,9 +36,16 @@ Everything not listed here is a faithful port. The deviations:
 
 ### `src/lib/` shared files (from homebridge-plugin-utils 1.35.0 / @homebridge/plugin-ui-utils 2.2.3)
 
-- `MqttClient` is API-identical to upstream but runs on the in-repo `MqttConnection` (MQTT 3.1.1 over `net`/`tls`) instead of the `mqtt` package.
-- **Added** (not in upstream): `WebSocketClient` enforces a configurable maximum message size (default 64 MiB, fragmentation-aware); `MqttConnection`'s
-  keepalive doubles as a liveness watchdog (two silent intervals tear down the connection for reconnect).
+- `MqttClient` is API-identical to upstream but runs on the in-repo `MqttConnection` (MQTT 3.1.1 over `net`/`tls`) instead of the `mqtt` package. One
+  consequence: MQTT-over-WebSocket broker URLs (`ws://`, `wss://`), which mqtt.js accepted, are not supported - only `mqtt://`, `mqtts://`, `tcp://`, and
+  `ssl://` - and are rejected with an explicit "Unsupported protocol" error.
+- `HomebridgePluginUiServer`'s parent-disconnect watchdog (SIGTERM when the Homebridge UI's IPC channel goes away) is an unref'd 10-second `process.connected`
+  poll installed in the constructor, rather than upstream's module-scope interval plus `disconnect` listener. The module is re-exported through the shared
+  library barrel that the main plugin imports, where `process.connected` is undefined and the module-scope form would terminate Homebridge itself.
+- **Added** (not in upstream): `WebSocketClient` enforces a configurable maximum message size (default 64 MiB, fragmentation-aware) and force-closes
+  connections when a peer never completes the close handshake; `MqttConnection`'s keepalive doubles as a liveness watchdog (two silent intervals tear down the
+  connection for reconnect), the broker must answer CONNECT with a CONNACK within 30 seconds, inbound packets are bounds-checked and capped at 16 MiB, and
+  protocol violations tear down the connection for reconnect rather than trusting broker-declared lengths.
 
 ## Keeping the shared library in sync
 

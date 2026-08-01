@@ -8,7 +8,11 @@
 
 ### Fixed
 
-- **WebSocket shutdown races**: A transport error arriving after a consumer detached its listeners could raise an unhandled `error` event and crash the process; error events are now emitted only when listened for. Closing a WebSocket while its opening handshake was still in flight previously leaked the connection if the handshake later completed; the in-flight upgrade is now aborted and the connection discarded.
+- **WebSocket shutdown races**: A transport error arriving after a consumer detached its listeners could raise an unhandled `error` event and crash the process; error events are now emitted only when listened for. Closing a WebSocket while its opening handshake was still in flight previously leaked the connection if the handshake later completed; the in-flight upgrade is now aborted and the connection discarded. A peer that sends a close frame but never completes the TCP shutdown no longer leaves the connection hung in the closing state.
+- **MQTT robustness**: A malformed or truncated packet from the broker could throw inside the socket data handler and crash the process; all inbound packet parsing is now bounds-checked, broker-declared packet lengths are capped at 16 MiB, and protocol violations tear the connection down for reconnection. A broker that accepts the TCP connection but never answers with a CONNACK previously left the connection hung forever; it is now torn down after 30 seconds. MQTT-over-WebSocket broker URLs (unsupported by the in-repo client) are now rejected with a clear error instead of being reported as malformed.
+- **Unlock response handling**: A successful unlock request returning an empty or non-JSON body (e.g. during a UniFi OS service restart) could raise an unhandled rejection through the MQTT lock command path and crash the process; the response is now parsed defensively.
+- **Config UI with no adopted devices**: A controller that bootstraps successfully with zero adopted Access devices no longer breaks the discovery wizard.
+- **Config UI server lifecycle**: The custom UI server child process now terminates itself when the Homebridge UI that spawned it goes away, instead of lingering as an orphan.
 
 ### Changed
 

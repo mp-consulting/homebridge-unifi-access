@@ -512,8 +512,20 @@ export class AccessApi extends EventEmitter {
       return false;
     }
 
-    // Get our status.
-    const status = await response?.body.json() as { codeS?: string };
+    // Get our status. The response body isn't guaranteed to be valid JSON (e.g. a UniFi OS service mid-restart or a reverse proxy can return an empty 2xx),
+    // and some of our callers invoke unlock without awaiting it - a parse throw here would become an unhandled rejection that takes down the process.
+    let status: { codeS?: string };
+
+    try {
+
+      status = await response?.body.json() as { codeS?: string };
+    } catch(error) {
+
+      this.log.error('%s: Unable to %s the %s: invalid response received: %s.', this.getFullName(device), action, device.display_model,
+        error instanceof Error ? error.message : String(error));
+
+      return false;
+    }
 
     if(status.codeS === 'SUCCESS') {
 
@@ -676,7 +688,7 @@ export class AccessApi extends EventEmitter {
         body: options.body,
         headers: { ...this.headers, ...options.headers },
         method: options.method ?? 'GET',
-        retry: { factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: [ 429, 500, 502, 503, 504 ] },
+        retry: { factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: [ 400, 404, 429, 500, 502, 503, 504 ] },
         signal: controller.signal,
       });
 

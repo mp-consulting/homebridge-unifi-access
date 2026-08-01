@@ -169,10 +169,10 @@ export function createMockAccessApi() {
     doors: [] as { name: string; unique_id: string }[],
 
     getApiEndpoint: vi.fn().mockReturnValue('/api/v1'),
-    getBootstrap: vi.fn().mockResolvedValue(undefined),
+    getBootstrap: vi.fn().mockResolvedValue(true),
     getDeviceName: vi.fn((device: AccessDeviceConfig) => device.alias ?? device.name),
     getFullName: vi.fn((device: AccessDeviceConfig) => device.alias ?? device.name),
-    login: vi.fn().mockResolvedValue(undefined),
+    login: vi.fn().mockResolvedValue(true),
     logout: vi.fn(),
     name: 'Test Controller',
     on: vi.fn(),
@@ -180,7 +180,8 @@ export function createMockAccessApi() {
     reset: vi.fn(),
     responseOk: vi.fn().mockReturnValue(true),
     retrieve: vi.fn().mockResolvedValue({ statusCode: 200 }),
-    unlock: vi.fn().mockResolvedValue(undefined),
+    // The real API resolves to a boolean - defaulting to true means the default mock simulates success, matching what most tests expect.
+    unlock: vi.fn().mockResolvedValue(true),
   };
 }
 

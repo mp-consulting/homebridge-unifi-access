@@ -130,7 +130,8 @@ class PluginUiServer extends HomebridgePluginUiServer {
           return [];
         }
 
-        const devices = udaApi.devices.filter(x => x.is_managed);
+        // A controller with no adopted Access devices bootstraps successfully but leaves the device list null.
+        const devices = (udaApi.devices ?? []).filter(x => x.is_managed);
 
         devices.sort((a, b) => {
 

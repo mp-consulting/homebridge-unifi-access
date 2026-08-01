@@ -194,10 +194,13 @@ describe('MqttConnection', () => {
     expect(error.message).toContain('return code 5');
   });
 
-  it('throws Missing protocol for invalid broker URLs', () => {
+  it('throws descriptive errors for invalid and unsupported broker URLs', () => {
 
     expect(() => new MqttConnection('nonsense')).toThrow('Missing protocol');
-    expect(() => new MqttConnection('http://localhost')).toThrow('Missing protocol');
+    expect(() => new MqttConnection('http://localhost')).toThrow('Unsupported protocol: http');
+
+    // MQTT-over-WebSocket is deliberately unsupported and must be called out rather than reported as a malformed URL.
+    expect(() => new MqttConnection('ws://localhost:9001')).toThrow('Unsupported protocol: ws');
   });
 
   it('tears down the connection when the broker stops answering pings', async () => {
@@ -206,8 +209,9 @@ describe('MqttConnection', () => {
 
     cleanup.push(() => broker.server.close());
 
-    // Fake only the interval timer that drives the keepalive so we can fast-forward through it. Everything else - socket I/O in particular - stays real.
-    vi.useFakeTimers({ toFake: [ 'setInterval' ] });
+    // Fake the interval timer that drives the keepalive so we can fast-forward through it - and its matching clearInterval, so teardown clears the fake timer
+    // rather than silently no-oping against a real one. Everything else - socket I/O in particular - stays real.
+    vi.useFakeTimers({ toFake: [ 'setInterval', 'clearInterval' ] });
 
     const mqtt = new MqttConnection('mqtt://localhost:' + broker.port, { reconnectPeriod: 0 });
 
@@ -224,6 +228,94 @@ describe('MqttConnection', () => {
 
     await closed;
 
-    expect(broker.events.filter(event => event.type === 'pingreq').length).toBe(2);
+    await vi.waitFor(() => expect(broker.events.filter(event => event.type === 'pingreq').length).toBe(2));
+  });
+
+  it('tears down the connection when the broker never answers with a CONNACK', async () => {
+
+    // A server that accepts the TCP connection but never speaks MQTT.
+    const server = net.createServer(() => {});
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    cleanup.push(() => server.close());
+
+    const gotConnect = new Promise<void>(resolve => server.on('connection', socket => socket.once('data', () => resolve())));
+
+    vi.useFakeTimers({ toFake: [ 'setTimeout', 'clearTimeout' ] });
+
+    const mqtt = new MqttConnection('mqtt://localhost:' + (server.address() as AddressInfo).port, { reconnectPeriod: 0 });
+
+    cleanup.push(() => mqtt.end(true));
+
+    // The handshake timeout surfaces as an error alongside the teardown. events.once() rejects its promise when an error event fires, so wait for the close
+    // event directly rather than through it.
+    const errors: Error[] = [];
+
+    mqtt.on('error', (error: Error) => errors.push(error));
+
+    const closed = new Promise<void>(resolve => mqtt.once('close', () => resolve()));
+
+    // Once our CONNECT packet has reached the silent server, the handshake timeout is armed - fast-forward through it.
+    await gotConnect;
+    await vi.advanceTimersByTimeAsync(10000);
+
+    await closed;
+
+    expect(errors.map(error => error.message)).toContainEqual(expect.stringContaining('Timed out waiting for the MQTT broker'));
+  });
+
+  it('survives a malformed PUBLISH packet by tearing down the connection instead of throwing', async () => {
+
+    // A server that answers the CONNECT with a valid CONNACK, then sends a PUBLISH with a truncated body - a naive parser would throw out of the socket's data
+    // handler and crash the process.
+    const server = net.createServer(socket => {
+
+      socket.once('data', () => {
+
+        socket.write(Buffer.from([ 0x20, 2, 0, 0 ]));
+        socket.write(Buffer.from([ 0x30, 0x00 ]));
+      });
+    });
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    cleanup.push(() => server.close());
+
+    const mqtt = new MqttConnection('mqtt://localhost:' + (server.address() as AddressInfo).port, { reconnectPeriod: 0 });
+
+    cleanup.push(() => mqtt.end(true));
+
+    // Await the error before attaching the close waiter - events.once() rejects a pending waiter when an error event fires first. The close event trails the
+    // error by at least a tick, so attaching afterwards can't miss it.
+    const [ error ] = await once(mqtt, 'error') as [ Error ];
+
+    expect(error.message).toContain('Invalid MQTT packet');
+
+    await once(mqtt, 'close');
+  });
+
+  it('rejects a broker-declared packet length above the maximum', async () => {
+
+    // A valid CONNACK followed by a packet declaring a 32 MiB remaining length.
+    const server = net.createServer(socket => {
+
+      socket.once('data', () => {
+
+        socket.write(Buffer.from([ 0x20, 2, 0, 0 ]));
+        socket.write(Buffer.from([ 0x30, 0x80, 0x80, 0x80, 0x10 ]));
+      });
+    });
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    cleanup.push(() => server.close());
+
+    const mqtt = new MqttConnection('mqtt://localhost:' + (server.address() as AddressInfo).port, { reconnectPeriod: 0 });
+
+    cleanup.push(() => mqtt.end(true));
+
+    const [ error ] = await once(mqtt, 'error') as [ Error ];
+
+    expect(error.message).toContain('exceeds the maximum');
+
+    await once(mqtt, 'close');
   });
 });
