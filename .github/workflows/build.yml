@@ -32,3 +32,14 @@ jobs:
 
       - name: Test
         run: npm test
+
+  # The shared dependency-free library (src/lib) is deliberately duplicated between homebridge-unifi-access and homebridge-unifi-protect. Fail if the copies drift.
+  lib-sync:
+    name: Shared library sync check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Compare src/lib against the sibling repository
+        run: ./scripts/check-lib-sync.sh

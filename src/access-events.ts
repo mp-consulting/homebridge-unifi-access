@@ -4,9 +4,9 @@
  * access-events.ts: Events class for UniFi Access.
  */
 import type { API, HAP, Service } from 'homebridge';
-import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from 'unifi-access';
+import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from './unifi/index.js';
 import { AccessEventType, AccessReservedNames } from './access-types.js';
-import { type HomebridgePluginLogging, sanitizeName } from 'homebridge-plugin-utils';
+import { type HomebridgePluginLogging, sanitizeName } from './lib/index.js';
 import type { AccessController } from './access-controller.js';
 import type { AccessDevice } from './access-device.js';
 import type { AccessPlatform } from './access-platform.js';

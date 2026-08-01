@@ -6,7 +6,7 @@
  * All schemas and reference payloads are defined in tests/event-schemas.ts — the single source of truth shared with scripts/event-schema-monitor.ts.
  */
 import { describe, it, expect } from 'vitest';
-import type { AccessEventDoorbellRing, AccessEventPacket } from 'unifi-access';
+import type { AccessEventDoorbellRing, AccessEventPacket } from '../src/unifi/index.js';
 import { AccessEventType } from '../src/access-types.js';
 import {
   extractSchema, referenceDoorbellCancel, referenceDoorbellRing, referenceDeviceUpdateV2, referenceEventPacket, referenceLocationUpdate, schemaDiff,

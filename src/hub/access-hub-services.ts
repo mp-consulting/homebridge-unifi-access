@@ -6,7 +6,7 @@
 import type { CharacteristicValue } from 'homebridge';
 import type { SensorInput } from '../access-device-catalog.js';
 import { AccessReservedNames } from '../access-types.js';
-import { acquireService, sanitizeName, validService } from 'homebridge-plugin-utils';
+import { acquireService, sanitizeName, validService } from '../lib/index.js';
 import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey, type HubEventMap, terminalInputs } from './access-hub-types.js';
 import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from '../settings.js';
 import type { AccessHub } from './access-hub.js';

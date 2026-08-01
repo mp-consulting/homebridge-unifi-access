@@ -6,7 +6,7 @@
  *
  * When the UniFi Access API changes, update schemas here and both consumers pick up the changes automatically.
  */
-import type { AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from 'unifi-access';
+import type { AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from '../src/unifi/index.js';
 import type { AccessEventDeviceUpdateV2, AccessEventLocationDataUpdate, AccessEventLocationUpdate } from '../src/hub/access-hub-types.js';
 
 // ---- Schema definition types ----

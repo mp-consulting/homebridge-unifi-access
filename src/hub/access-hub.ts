@@ -4,7 +4,7 @@
  * access-hub.ts: Core hub class for UniFi Access. State management, construction, orchestration, and static property definitions.
  */
 import { EventEmitter } from 'events';
-import type { AccessDeviceConfig } from 'unifi-access';
+import type { AccessDeviceConfig } from '../unifi/index.js';
 import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
 import { type DeviceCatalogEntry, type SensorInput, getDeviceCatalog } from '../access-device-catalog.js';
 import type { AccessController } from '../access-controller.js';

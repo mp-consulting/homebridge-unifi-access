@@ -101,6 +101,7 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 | `controllers[].name` | Custom name for the controller (used in logs) |
 | `controllers[].mqttUrl` | MQTT broker URL (e.g. `mqtt://1.2.3.4`) |
 | `controllers[].mqttTopic` | MQTT base topic (default: `unifi/access`) |
+| `controllers[].verifyTls` | Validate the controller's TLS certificate — enable only when the controller uses a CA-signed certificate (default: `false`) |
 | `options` | Array of [feature options](docs/feature-options.md) for granular control |
 | `ringDelay` | Delay in seconds between doorbell rings (default: `0`) |
 
@@ -109,7 +110,6 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 - [Feature Options](docs/feature-options.md) - show/hide devices and customize behavior
 - [MQTT](docs/mqtt.md) - configure MQTT event publishing
 - [Events](docs/events.md) - UniFi Access event types and payloads
-- [UniFi Access API](https://www.npmjs.com/package/unifi-access) - native API library
 - [Changelog](CHANGELOG.md) - release notes and version history
 
 ## Contributing

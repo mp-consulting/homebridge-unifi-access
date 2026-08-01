@@ -10,7 +10,7 @@ Homebridge plugin (`@mp-consulting/homebridge-unifi-access`) providing HomeKit s
 - **Runtime**: Node.js >= 20, Homebridge >= 1.8.0
 - **Testing**: Vitest with v8 coverage
 - **Linting**: ESLint 9 flat config with typescript-eslint
-- **Key deps**: `unifi-access` (API client), `homebridge-plugin-utils` (HBUP utilities)
+- **Dependencies**: None at runtime — the UniFi Access API client (`src/unifi/`) and plugin utilities (`src/lib/`) are implemented in-repo on Node.js built-ins
 
 ## Commands
 
@@ -35,6 +35,8 @@ src/
 ├── access-types.ts             # Type/enum definitions
 ├── access-options.ts           # Feature options & config types
 ├── settings.ts                 # Constants & utilities
+├── lib/                        # Dependency-free utility library (feature options, MQTT client, HTTPS/WebSocket transports, HomeKit service helpers, UI server)
+├── unifi/                      # UniFi Access API client (login, bootstrap, unlock, realtime events WebSocket) built on src/lib transports
 └── hub/                        # Hub-specific implementations
     ├── access-hub.ts           # Hub state & orchestration
     ├── access-hub-api.ts       # Hub API interactions
@@ -59,7 +61,7 @@ homebridge-ui/                  # Custom config UI with discovery wizard
 - **Platform → Controller → Device/Hub** hierarchy
 - **Hub specialization**: `AccessHub` extends `AccessDevice` with dedicated sub-modules (API, services, events, MQTT)
 - **Event-driven**: WebSocket subscriptions for real-time state updates
-- **Feature options**: Per-device and per-controller capability toggles via `homebridge-plugin-utils`
+- **Feature options**: Per-device and per-controller capability toggles via the in-repo feature options engine (`src/lib/featureoptions.ts`)
 - **Device catalog**: Maps device models (DPS, REL, REN, REX) to capabilities
 - **Per-door naming**: Multi-door hubs (UA Gate) expose individual door accessories
 - **Custom UI**: Uses Homebridge custom UI framework (`homebridge-ui/`) for plugin configuration management

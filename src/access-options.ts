@@ -5,7 +5,7 @@
  */
 import { ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, ACCESS_DEVICE_UNLOCK_INTERVAL, ACCESS_GATE_DIRECTION_DURATION } from './settings.js';
 import { modelsDefaultGarageDoor, modelsDefaultLock, modelsDps, modelsRel, modelsRen, modelsRex, modelsSideDoor } from './access-device-catalog.js';
-import type { FeatureOptionEntry } from 'homebridge-plugin-utils';
+import type { FeatureOptionEntry } from './lib/index.js';
 
 // Plugin configuration options.
 export interface AccessOptions {
@@ -25,6 +25,7 @@ export interface AccessControllerOptions {
   name?: string;
   username: string;
   password: string;
+  verifyTls?: boolean;
 }
 
 // HBUA's webUI makes use of additional metadata to only surface the feature options relevant for a particular device. These properties provide that metadata.

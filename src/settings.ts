@@ -3,7 +3,7 @@
  *
  * settings.ts: Settings and constants for homebridge-unifi-access.
  */
-import type { HomebridgePluginLogging } from 'homebridge-plugin-utils';
+import type { HomebridgePluginLogging } from './lib/index.js';
 import type { Logging } from 'homebridge';
 import util from 'node:util';
 

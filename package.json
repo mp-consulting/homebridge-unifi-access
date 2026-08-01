@@ -68,11 +68,7 @@
     "homebridge-ui",
     "config.schema.json"
   ],
-  "dependencies": {
-    "@homebridge/plugin-ui-utils": "2.2.3",
-    "homebridge-plugin-utils": "^1.35.0",
-    "unifi-access": "1.5.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@mp-consulting/homebridge-ui-kit": "^1.0.0",
@@ -89,7 +85,6 @@
     "vitest": "^4.1.5"
   },
   "overrides": {
-    "@types/readable-stream": "4.0.23",
-    "undici": "7.28.0"
+    "@types/readable-stream": "4.0.23"
   }
 }

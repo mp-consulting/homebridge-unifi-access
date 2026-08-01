@@ -8,7 +8,7 @@ import { type AccessOptions, featureOptionCategories, featureOptions } from './a
 import { ACCESS_MQTT_TOPIC } from './settings.js';
 import { APIEvent } from 'homebridge';
 import { AccessController } from './access-controller.js';
-import { FeatureOptions } from 'homebridge-plugin-utils';
+import { FeatureOptions } from './lib/index.js';
 import util from 'node:util';
 
 export class AccessPlatform implements DynamicPlatformPlugin {

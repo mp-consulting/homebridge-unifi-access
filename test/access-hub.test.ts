@@ -51,7 +51,7 @@ const { createTestService } = vi.hoisted(() => {
 });
 
 // Mock homebridge-plugin-utils to handle service creation without real Homebridge.
-vi.mock('homebridge-plugin-utils', () => ({
+vi.mock('../src/lib/index.js', () => ({
 
   acquireService: vi.fn((accessory: any, serviceType: string, _name: string, subtype?: string, initCallback?: () => void) => {
 

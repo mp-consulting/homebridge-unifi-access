@@ -4,7 +4,7 @@
  * access-hub-events.ts: External event parsing for the UniFi Access hub. Parses UniFi Access API events and updates hub state.
  * MQTT publishing and logging are handled automatically by the hub event bus subscribers.
  */
-import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from 'unifi-access';
+import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from '../unifi/index.js';
 import { AccessEventType } from '../access-types.js';
 import {
   AUTO_LOCK_DELAY_MS, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate, type AccessMethodKey, type HasWiringHintKey,
