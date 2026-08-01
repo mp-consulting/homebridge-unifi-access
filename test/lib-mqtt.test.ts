@@ -178,6 +178,32 @@ describe('MqttConnection', () => {
     await vi.waitFor(() => expect(broker.events).toContainEqual({ topic: 'house/door/status', type: 'unsubscribe' }));
   });
 
+  it('queues application packets issued before the handshake so CONNECT is first on the wire', async () => {
+
+    const broker = await createBroker();
+
+    cleanup.push(() => broker.server.close());
+
+    const mqtt = new MqttConnection('mqtt://localhost:' + broker.port);
+
+    cleanup.push(() => mqtt.end(true));
+
+    // Subscribe and publish immediately, before the TCP connection has even completed - nothing may reach the broker ahead of CONNECT [MQTT-3.1.0-1].
+    mqtt.subscribe('house/door/status');
+    mqtt.publish('house/door/trigger', 'on');
+
+    await once(mqtt, 'connect');
+
+    await vi.waitFor(() => expect(broker.events).toContainEqual({ payload: 'on', topic: 'house/door/trigger', type: 'publish' }));
+
+    // CONNECT must be the first packet the broker sees, with the held-back subscribe and publish following only after CONNACK.
+    expect(broker.events[0]).toMatchObject({ type: 'connect' });
+    expect(broker.events).toContainEqual({ topic: 'house/door/status', type: 'subscribe' });
+
+    // The pre-connect subscription is established by the CONNACK restoration pass alone - it must not be sent a second time from a queue.
+    expect(broker.events.filter(event => event.type === 'subscribe').length).toBe(1);
+  });
+
   it('emits a connection-refused error when the broker rejects the connection', async () => {
 
     const broker = await createBroker({ connackCode: 5 });

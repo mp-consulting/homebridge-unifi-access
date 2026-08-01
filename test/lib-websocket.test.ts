@@ -279,6 +279,35 @@ describe('WebSocketClient', () => {
     expect(frames.every(frame => frame.isMasked)).toBe(true);
   });
 
+  it('sends heartbeat pings and stays connected while the server answers', async () => {
+
+    // Answer every inbound frame with a pong so the connection stays live across heartbeat intervals.
+    onUpgraded = (socket): void => {
+
+      socket.on('data', () => socket.write(encodeFrame(0xA, Buffer.alloc(0))));
+    };
+
+    const ws = await connect({ heartbeatInterval: 100 });
+
+    // Wait for multiple heartbeat pings to hit the wire - the pongs they elicit keep the watchdog satisfied.
+    await vi.waitFor(() => expect(decodeClientFrames(serverInbound).filter(frame => frame.opcode === 0x9).length).toBeGreaterThanOrEqual(2), { timeout: 2000 });
+
+    expect(ws.readyState).toBe(WebSocketClient.OPEN);
+  });
+
+  it('detects a dead peer through the heartbeat and closes the connection', async () => {
+
+    // The server never sends a frame after the handshake, so the heartbeat watchdog must declare the connection dead and close it.
+    const ws = await connect({ heartbeatInterval: 100 });
+
+    await once(ws, 'close');
+
+    expect(ws.readyState).toBe(WebSocketClient.CLOSED);
+
+    // The watchdog pinged the peer before giving up on it.
+    expect(decodeClientFrames(serverInbound).some(frame => frame.opcode === 0x9)).toBe(true);
+  });
+
   it('completes a client-initiated close handshake when the server echoes the close', async () => {
 
     // Echo the client's close frame back, completing the handshake, then finish the TCP shutdown.
