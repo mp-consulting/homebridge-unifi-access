@@ -55,7 +55,7 @@ This plugin discovers all your supported UniFi Access devices and makes them ava
 ## Prerequisites
 
 - [Homebridge](https://homebridge.io) >= 1.8.0
-- Node.js >= 20
+- Node.js >= 22
 - A UniFi Access controller running the **latest stable firmware**
 - A local user account on the controller (recommended over Ubiquiti cloud credentials; 2FA is not supported)
 
