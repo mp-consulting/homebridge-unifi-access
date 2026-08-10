@@ -115,6 +115,7 @@
   },
 
   "layout": [
+    "name",
     {
       "type": "section",
       "title": "UniFi Access Controllers",
