@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.4] - 2026-09-10
+
+### Changed
+
+- **Dependencies**: Updated all dependencies to latest compatible versions, including the vendored `@mp-consulting/homebridge-ui-kit` ^1.0.1 used by the config UI, plus dev-only major bumps for `vitest` (4→5) and `@types/node` (25→26).
+
 ## [1.1.3] - 2026-08-10
 
 ### Fixed
