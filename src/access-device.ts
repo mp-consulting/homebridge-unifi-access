@@ -42,6 +42,8 @@ export interface AccessHints {
   logRex: boolean;
   motionDuration: number;
   occupancyDuration: number;
+  separateAccessMethods: boolean;
+  separateDoorbell: boolean;
   separateSensors: boolean;
   syncName: boolean;
 }

@@ -176,23 +176,23 @@ export function hubLockState(hub: AccessHub, isSideDoor = false): Characteristic
   return (lockRelayValue === 'off') ? hub.hap.Characteristic.LockCurrentState.SECURED : hub.hap.Characteristic.LockCurrentState.UNSECURED;
 }
 
-// Utility to retrieve the accessory hosting a given contact sensor. Sensors live on the hub accessory unless they've been split onto their own HomeKit tile.
-export function sensorHost(hub: AccessHub, name: AccessReservedNames): PlatformAccessory {
+// Utility to retrieve the accessory hosting a given group of services. Services live on the hub accessory unless they've been split onto a tile of their own.
+export function serviceHost(hub: AccessHub, group: string): PlatformAccessory {
 
-  return hub.sensorAccessories[name] ?? hub.accessory;
+  return hub.serviceAccessories[group] ?? hub.accessory;
 }
 
 // Utility to retrieve a contact sensor state.
 export function getContactSensorState(hub: AccessHub, name: AccessReservedNames): CharacteristicValue {
 
-  return sensorHost(hub, name).getServiceById(hub.hap.Service.ContactSensor, name)?.getCharacteristic(hub.hap.Characteristic.ContactSensorState).value ??
+  return serviceHost(hub, name).getServiceById(hub.hap.Service.ContactSensor, name)?.getCharacteristic(hub.hap.Characteristic.ContactSensorState).value ??
     hub.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
 }
 
 // Utility to set a contact sensor state.
 export function setContactSensorState(hub: AccessHub, name: AccessReservedNames, value: CharacteristicValue): void {
 
-  sensorHost(hub, name).getServiceById(hub.hap.Service.ContactSensor, name)?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, value);
+  serviceHost(hub, name).getServiceById(hub.hap.Service.ContactSensor, name)?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, value);
 }
 
 // Log the lock delay interval configuration for a door.

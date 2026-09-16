@@ -39,6 +39,9 @@ export function createMockPlatform() {
   };
 }
 
+// The feature options that move services onto their own HomeKit accessory.
+export const SEPARATE_ACCESSORY_OPTIONS = [ 'AccessMethod.SeparateAccessory', 'Hub.Doorbell.SeparateAccessory', 'Hub.Sensors.SeparateAccessory' ];
+
 // Create a mock AccessController.
 export function createMockController(overrides: Record<string, unknown> = {}) {
 
@@ -78,9 +81,9 @@ export function createMockController(overrides: Record<string, unknown> = {}) {
     events,
     hap,
 
-    // Every feature option is on by default, apart from the separate accessory option - that one rearranges where services live, so leaving it off keeps the
-    // mock on the plugin's default accessory layout. Tests that want the separate layout override hasFeature.
-    hasFeature: vi.fn((option: string, _device?: unknown) => option !== 'Hub.Sensors.SeparateAccessory'),
+    // Every feature option is on by default, apart from the separate accessory options - those rearrange where services live, so leaving them off keeps the
+    // mock on the plugin's default accessory layout. Tests that want a separate layout override hasFeature.
+    hasFeature: vi.fn((option: string, _device?: unknown) => !SEPARATE_ACCESSORY_OPTIONS.includes(option)),
 
     id: 'controller-test-id',
     log,

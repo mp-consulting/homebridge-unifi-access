@@ -113,6 +113,9 @@ function toConfigArray(obj: Record<string, string>): { key: string; value: strin
   return Object.entries(obj).map(([key, value]) => ({ key, value }));
 }
 
+// The feature options that move services onto their own HomeKit accessory.
+const SEPARATE_ACCESSORY_OPTIONS = [ 'AccessMethod.SeparateAccessory', 'Hub.Doorbell.SeparateAccessory', 'Hub.Sensors.SeparateAccessory' ];
+
 // Helper: create a mock controller for hub tests.
 function createHubController(overrides: Record<string, unknown> = {}) {
 
@@ -230,9 +233,9 @@ function createHubController(overrides: Record<string, unknown> = {}) {
     configuredDevices: {} as Record<string, unknown>,
     events,
 
-    // Every feature option is on by default, apart from the separate accessory option - that one rearranges where services live, so leaving it off keeps the
-    // mock on the plugin's default accessory layout. Tests that want the separate layout override hasFeature.
-    hasFeature: vi.fn((option: string) => option !== 'Hub.Sensors.SeparateAccessory'),
+    // Every feature option is on by default, apart from the separate accessory options - those rearrange where services live, so leaving them off keeps the
+    // mock on the plugin's default accessory layout. Tests that want a separate layout call enableSeparate().
+    hasFeature: vi.fn((option: string) => !SEPARATE_ACCESSORY_OPTIONS.includes(option)),
 
     id: '001122334455',
     log,
@@ -365,6 +368,24 @@ function createUGTConfig(overrides: Record<string, unknown> = {}) {
 }
 
 // Create a UA-ULTRA device config.
+function createG6EntryConfig(overrides: Record<string, unknown> = {}) {
+
+  return {
+
+    ...baseConfig,
+    alias: 'Front Door',
+    capabilities: [ 'is_hub', 'is_reader', 'door_bell', 'identity_face_unlock', 'support_apple_pass' ],
+    configs: toConfigArray({ 'input_state_rly-lock_dry': 'off' }),
+    device_type: 'UVC G6 Entry',
+    display_model: 'UVC G6 Entry',
+    hw_type: 'UVC G6 Entry',
+    model: 'UVC G6 Entry',
+    name: 'Front Door',
+    unique_id: 'g6-entry-1',
+    ...overrides,
+  };
+}
+
 function createUltraConfig(overrides: Record<string, unknown> = {}) {
 
   return {
@@ -1380,11 +1401,17 @@ describe('AccessHub', () => {
 
   describe('separate sensor accessories', () => {
 
-    // Turn on the separate accessory feature option. We leave Door.UseGarageOpener off so that the hub keeps a lock accessory, which is the layout this
-    // feature option exists to clean up.
+    // Turn on the given separate accessory feature options, leaving the rest off. Door.UseGarageOpener stays off so that the hub keeps a lock accessory,
+    // which is the layout these options exist to clean up.
+    function enableSeparate(...enabled: string[]): void {
+
+      controller.hasFeature = vi.fn((option: string) =>
+        (option !== 'Hub.Door.UseGarageOpener') && (!SEPARATE_ACCESSORY_OPTIONS.includes(option) || enabled.includes(option))) as any;
+    }
+
     function enableSeparateSensors(): void {
 
-      controller.hasFeature = vi.fn((option: string) => option !== 'Hub.Door.UseGarageOpener') as any;
+      enableSeparate('Hub.Sensors.SeparateAccessory');
     }
 
     it('should keep sensors on the hub accessory by default', () => {
@@ -1392,7 +1419,7 @@ describe('AccessHub', () => {
       const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
 
       expect(accessory.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS)).toBeDefined();
-      expect(hub.sensorAccessories[AccessReservedNames.CONTACT_DPS]).toBeUndefined();
+      expect(hub.serviceAccessories[AccessReservedNames.CONTACT_DPS]).toBeUndefined();
       expect(hub.childAccessories).toHaveLength(0);
       expect(controller.acquireChildAccessory).not.toHaveBeenCalled();
     });
@@ -1409,7 +1436,7 @@ describe('AccessHub', () => {
       for(const subtype of [ AccessReservedNames.CONTACT_DPS, AccessReservedNames.CONTACT_REL, AccessReservedNames.CONTACT_REN,
         AccessReservedNames.CONTACT_REX ]) {
 
-        const child = hub.sensorAccessories[subtype];
+        const child = hub.serviceAccessories[subtype];
 
         expect(child).toBeDefined();
         expect(child?.getServiceById('ContactSensor', subtype)).toBeDefined();
@@ -1431,7 +1458,7 @@ describe('AccessHub', () => {
       enableSeparateSensors();
 
       const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
-      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS];
+      const child = hub.serviceAccessories[AccessReservedNames.CONTACT_DPS];
       const info = child?.getService('AccessoryInformation');
 
       expect(child?.displayName).toBe('Test Hub Door Position Sensor');
@@ -1444,7 +1471,7 @@ describe('AccessHub', () => {
       enableSeparateSensors();
 
       const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
-      const service = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS]?.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS);
+      const service = hub.serviceAccessories[AccessReservedNames.CONTACT_DPS]?.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS);
 
       hub.hkDpsState = hub.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
 
@@ -1457,7 +1484,7 @@ describe('AccessHub', () => {
       enableSeparateSensors();
 
       const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
-      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS];
+      const child = hub.serviceAccessories[AccessReservedNames.CONTACT_DPS];
 
       hub.accessoryName = 'Front Door';
 
@@ -1473,7 +1500,7 @@ describe('AccessHub', () => {
       expect(controller.childAccessories.size).toBe(4);
 
       // Rebuild the hub with the option turned off, as would happen on a restart after the user changes their configuration.
-      controller.hasFeature = vi.fn((option: string) => option !== 'Hub.Sensors.SeparateAccessory') as any;
+      enableSeparate();
 
       const rebuilt = new AccessHub(controller as any, createUAHConfig(), createTestAccessory('rebuilt-uuid') as any);
 
@@ -1486,10 +1513,133 @@ describe('AccessHub', () => {
       enableSeparateSensors();
 
       const hub = new AccessHub(controller as any, createUGTConfig(), accessory as any);
-      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS_SIDE];
+      const child = hub.serviceAccessories[AccessReservedNames.CONTACT_DPS_SIDE];
 
       expect(child).toBeDefined();
       expect(child?.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS_SIDE)).toBeDefined();
+    });
+  });
+
+
+  describe('separate access method and doorbell accessories', () => {
+
+    // Turn on the given separate accessory feature options, leaving the rest off.
+    function enableSeparate(...enabled: string[]): void {
+
+      controller.hasFeature = vi.fn((option: string) =>
+        (option !== 'Hub.Door.UseGarageOpener') && (!SEPARATE_ACCESSORY_OPTIONS.includes(option) || enabled.includes(option))) as any;
+    }
+
+    // The service keys present on an accessory, as the test harness records them.
+    function serviceKeys(target: { _services: Map<string, unknown> }): string[] {
+
+      return [...target._services.keys()].filter(key => key !== 'AccessoryInformation');
+    }
+
+    it('should keep the access method switches on the hub accessory by default', () => {
+
+      const hub = new AccessHub(controller as any, createUltraConfig(), accessory as any);
+
+      expect(accessory.getServiceById('Switch', AccessReservedNames.SWITCH_ACCESSMETHOD_FACE)).toBeDefined();
+      expect(hub.serviceAccessories.AccessMethods).toBeUndefined();
+    });
+
+    it('should move the access method switches onto a single accessory of their own', () => {
+
+      enableSeparate('AccessMethod.SeparateAccessory');
+
+      const hub = new AccessHub(controller as any, createUltraConfig(), accessory as any);
+      const child = hub.serviceAccessories.AccessMethods;
+
+      expect(child).toBeDefined();
+      expect(child?.displayName).toBe('Test Ultra Access Methods');
+
+      // Every method switch moves together, so the group shares one tile rather than producing one each.
+      for(const subtype of [ AccessReservedNames.SWITCH_ACCESSMETHOD_FACE, AccessReservedNames.SWITCH_ACCESSMETHOD_TOUCHPASS,
+        AccessReservedNames.SWITCH_ACCESSMETHOD_PIN ]) {
+
+        expect(child?.getServiceById('Switch', subtype)).toBeDefined();
+        expect(accessory.getServiceById('Switch', subtype)).toBeUndefined();
+      }
+    });
+
+    it('should not create an access method accessory for a device that is not a reader', () => {
+
+      enableSeparate('AccessMethod.SeparateAccessory');
+
+      // A UAH is a hub but not a reader, so it has no access method switches to move.
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      expect(hub.serviceAccessories.AccessMethods).toBeUndefined();
+      expect(controller.childAccessories.has('AccessMethods')).toBe(false);
+    });
+
+    it('should keep the doorbell on the hub accessory by default', () => {
+
+      const hub = new AccessHub(controller as any, createG6EntryConfig(), accessory as any);
+
+      expect(accessory.getService('Doorbell')).toBeDefined();
+      expect(hub.serviceAccessories.Doorbell).toBeUndefined();
+    });
+
+    it('should move the doorbell and its trigger onto one accessory of their own', () => {
+
+      enableSeparate('Hub.Doorbell.SeparateAccessory');
+
+      const hub = new AccessHub(controller as any, createG6EntryConfig(), accessory as any);
+      const child = hub.serviceAccessories.Doorbell;
+
+      expect(child).toBeDefined();
+      expect(child?.displayName).toBe('Front Door Doorbell');
+      expect(child?.getService('Doorbell')).toBeDefined();
+      expect(child?.getServiceById('Switch', AccessReservedNames.SWITCH_DOORBELL_TRIGGER)).toBeDefined();
+      expect(accessory.getService('Doorbell')).toBeUndefined();
+      expect(accessory.getServiceById('Switch', AccessReservedNames.SWITCH_DOORBELL_TRIGGER)).toBeUndefined();
+    });
+
+    it('should update the relocated doorbell trigger on a ring event', () => {
+
+      enableSeparate('Hub.Doorbell.SeparateAccessory');
+
+      const hub = new AccessHub(controller as any, createG6EntryConfig(), accessory as any);
+      const trigger = hub.serviceAccessories.Doorbell?.getServiceById('Switch', AccessReservedNames.SWITCH_DOORBELL_TRIGGER);
+
+      (hub as any).hubEvents.emit('doorbell:ring', { requestId: 'ring-1' });
+      expect(trigger.getCharacteristic('On').value).toBe(true);
+
+      (hub as any).hubEvents.emit('doorbell:cancel', { requestId: 'ring-1' });
+      expect(trigger.getCharacteristic('On').value).toBe(false);
+    });
+
+    it('should leave the hub accessory holding nothing but the lock', () => {
+
+      // This is the case from issue #5 - a reader/hub with a doorbell and access methods, and no terminal input sensors to speak of.
+      enableSeparate('AccessMethod.SeparateAccessory', 'Hub.Doorbell.SeparateAccessory', 'Hub.Sensors.SeparateAccessory');
+
+      // These mocks enable every feature option, so turn the lock trigger back off to match its real default. It's an opt-in companion to the lock and stays
+      // on the lock's accessory by design, so a user who enables it keeps a grouped tile.
+      const enabled = controller.hasFeature as any;
+
+      controller.hasFeature = vi.fn((option: string) => (option !== 'Hub.Lock.Trigger') && enabled(option)) as any;
+
+      new AccessHub(controller as any, createG6EntryConfig(), accessory as any);
+
+      expect(serviceKeys(accessory)).toEqual(['LockMechanism']);
+    });
+
+    it('should return the doorbell to the hub accessory when the option is turned off', () => {
+
+      enableSeparate('Hub.Doorbell.SeparateAccessory');
+      new AccessHub(controller as any, createG6EntryConfig(), accessory as any);
+
+      expect(controller.childAccessories.has('Doorbell')).toBe(true);
+
+      enableSeparate();
+
+      const rebuilt = new AccessHub(controller as any, createG6EntryConfig(), createTestAccessory('rebuilt-uuid') as any);
+
+      expect(controller.childAccessories.has('Doorbell')).toBe(false);
+      expect(rebuilt.serviceAccessories.Doorbell).toBeUndefined();
     });
   });
 
