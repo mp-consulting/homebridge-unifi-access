@@ -407,4 +407,118 @@ describe('AccessController', () => {
       expect(platform.accessories).toContain(accessory);
     });
   });
+
+  describe('child accessories', () => {
+
+    let controller: AccessController;
+    let parent: ReturnType<typeof createMockAccessory>;
+    let device: { accessory: ReturnType<typeof createMockAccessory>; uda: { mac: string } };
+
+    beforeEach(() => {
+
+      controller = new AccessController(platform as any, createControllerOptions() as any);
+
+      controller.uda = { host: { mac: '00:11:22:33:44:55' } } as any;
+
+      (controller as any).udaApi = {
+        devices: [],
+        getDeviceName: vi.fn(() => 'Test Device'),
+        getFullName: vi.fn(() => 'Test Device'),
+      };
+
+      parent = createMockAccessory('parent-uuid');
+      parent.context.controller = '00:11:22:33:44:55';
+      platform.accessories.push(parent);
+
+      device = { accessory: parent, uda: { mac: 'AA:BB:CC:DD:EE:FF' } };
+
+      // No removal delay, so removals happen immediately.
+      platform.featureOptions.getInteger.mockReturnValue(0);
+    });
+
+    it('should register a child accessory and tag it with its parent', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      expect(child.UUID).toBe('uuid-parent-uuid.ContactSensor.DPS');
+      expect(child.context.childOf).toBe('parent-uuid');
+      expect(child.context.childSubtype).toBe('ContactSensor.DPS');
+      expect(child.context.mac).toBe('AA:BB:CC:DD:EE:FF');
+      expect(child.context.controller).toBe('00:11:22:33:44:55');
+      expect(platform.api.registerPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [child]);
+      expect(platform.accessories).toContain(child);
+    });
+
+    it('should reuse an existing child accessory on subsequent calls', () => {
+
+      const first = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+      const second = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      expect(second).toBe(first);
+      expect(platform.api.registerPlatformAccessories).toHaveBeenCalledTimes(1);
+    });
+
+    it('should unregister a child accessory on release', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      controller.releaseChildAccessory(device as any, 'ContactSensor.DPS');
+
+      expect(platform.api.unregisterPlatformAccessories).toHaveBeenCalledWith(PLUGIN_NAME, PLATFORM_NAME, [child]);
+      expect(platform.accessories).not.toContain(child);
+    });
+
+    it('should ignore a release for a child accessory that was never created', () => {
+
+      controller.releaseChildAccessory(device as any, 'ContactSensor.DPS');
+
+      expect(platform.api.unregisterPlatformAccessories).not.toHaveBeenCalled();
+    });
+
+    it('should remove child accessories along with their parent', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      (controller.configuredDevices as any)['parent-uuid'] = { accessory: parent, cleanup: vi.fn(), uda: { alias: 'Test', unique_id: 'dev-1' } };
+
+      controller.removeHomeKitDevice(parent as any, true);
+
+      expect(platform.accessories).not.toContain(parent);
+      expect(platform.accessories).not.toContain(child);
+    });
+
+    it('should remove a child accessory directly without touching the device removal machinery', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      (controller.configuredDevices as any)['parent-uuid'] = { accessory: parent, cleanup: vi.fn(), uda: { alias: 'Test', unique_id: 'dev-1' } };
+
+      controller.removeHomeKitDevice(child as any, true);
+
+      expect(platform.accessories).not.toContain(child);
+      expect(platform.accessories).toContain(parent);
+      expect(controller.configuredDevices['parent-uuid']).toBeDefined();
+    });
+
+    it('should leave child accessories in place while their parent is configured', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      (controller.configuredDevices as any)['parent-uuid'] = { accessory: parent, cleanup: vi.fn(), uda: { alias: 'Test', unique_id: 'dev-1' } };
+
+      (controller as any).cleanupDevices();
+
+      expect(platform.accessories).toContain(child);
+    });
+
+    it('should clean up orphaned child accessories whose parent is gone', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      // The parent was never configured, so the child has nothing to belong to.
+      (controller as any).cleanupDevices();
+
+      expect(platform.accessories).not.toContain(child);
+    });
+  });
 });

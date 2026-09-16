@@ -1,7 +1,7 @@
 /* Mock AccessController for testing. */
 import { vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { createMockAPI, createMockHAP } from './homebridge.js';
+import { createMockAPI, createMockAccessory, createMockHAP } from './homebridge.js';
 import { createMockAccessApi, createMockControllerConfig } from './unifi-access.js';
 
 // Create a mock log object that captures messages.
@@ -50,15 +50,37 @@ export function createMockController(overrides: Record<string, unknown> = {}) {
   const log = createMockLog();
   const hap = createMockHAP();
 
+  // Child accessories handed out by acquireChildAccessory, keyed by subtype.
+  const childAccessories = new Map<string, ReturnType<typeof createMockAccessory>>();
+
   const controller = {
 
+    // Sensors that have been split onto their own HomeKit tile. Functional so that tests can exercise the separate accessory path.
+    acquireChildAccessory: vi.fn((device: { accessory: { UUID: string } }, subtype: string, name: string) => {
+
+      let child = childAccessories.get(subtype);
+
+      if(!child) {
+
+        child = createMockAccessory(device.accessory.UUID + '.' + subtype);
+        child.displayName = name;
+        childAccessories.set(subtype, child);
+        platform.accessories.push(child);
+      }
+
+      return child;
+    }),
+
     api: platform.api,
+    childAccessories,
     config: { address: '192.168.1.1', mqttTopic: 'unifi/access', password: 'test', username: 'admin' },
     configuredDevices: {} as Record<string, unknown>,
     events,
     hap,
 
-    hasFeature: vi.fn((_option: string, _device?: unknown) => true),
+    // Every feature option is on by default, apart from the separate accessory option - that one rearranges where services live, so leaving it off keeps the
+    // mock on the plugin's default accessory layout. Tests that want the separate layout override hasFeature.
+    hasFeature: vi.fn((option: string, _device?: unknown) => option !== 'Hub.Sensors.SeparateAccessory'),
 
     id: 'controller-test-id',
     log,
@@ -67,6 +89,17 @@ export function createMockController(overrides: Record<string, unknown> = {}) {
       subscribeSet: ReturnType<typeof vi.fn>; unsubscribe: ReturnType<typeof vi.fn> } | null,
 
     platform,
+
+    releaseChildAccessory: vi.fn((_device: unknown, subtype: string) => {
+
+      const child = childAccessories.get(subtype);
+
+      if(child) {
+
+        platform.accessories.splice(platform.accessories.indexOf(child), 1);
+        childAccessories.delete(subtype);
+      }
+    }),
 
     removeHomeKitDevice: vi.fn(),
     deviceLookup: vi.fn(),

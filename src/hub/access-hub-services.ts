@@ -3,7 +3,7 @@
  *
  * access-hub-services.ts: HomeKit service configuration and state-change reactions for the UniFi Access hub.
  */
-import type { CharacteristicValue } from 'homebridge';
+import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
 import type { SensorInput } from '../access-device-catalog.js';
 import { AccessReservedNames } from '../access-types.js';
 import { acquireService, sanitizeName, validService } from '../lib/index.js';
@@ -11,7 +11,7 @@ import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWir
 import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from '../settings.js';
 import type { AccessHub } from './access-hub.js';
 import { hubDoorLockCommand } from './access-hub-api.js';
-import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired } from './access-hub-utils.js';
+import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired, sensorHost } from './access-hub-utils.js';
 
 // Start a 3-phase gate cycle: Opening → Open → Closing. The full gateDirectionDuration is split into equal thirds. DPS "close" confirms the final Closed state.
 function startGateCycle(hub: AccessHub): void {
@@ -215,7 +215,7 @@ export function registerServiceReactions(hub: AccessHub): void {
     // Side door DPS: update the side door contact sensor and return — the GarageDoorOpener only reflects main door state.
     if(data.isSideDoor) {
 
-      hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
+      sensorHost(hub, AccessReservedNames.CONTACT_DPS_SIDE).getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
         ?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, data.value);
 
       return;
@@ -316,7 +316,9 @@ export function registerServiceReactions(hub: AccessHub): void {
 
     for(const sensor of Object.keys(AccessReservedNames).filter(key => key.startsWith('CONTACT_'))) {
 
-      hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames[sensor as keyof typeof AccessReservedNames])?.
+      const subtype = AccessReservedNames[sensor as keyof typeof AccessReservedNames];
+
+      sensorHost(hub, subtype).getServiceById(hub.hap.Service.ContactSensor, subtype)?.
         updateCharacteristic(hub.hap.Characteristic.StatusActive, data.isOnline);
     }
   });
@@ -445,6 +447,32 @@ function configureDoorbellTrigger(hub: AccessHub): boolean {
   return true;
 }
 
+// Determine which accessory should host a given contact sensor. By default sensors are added to the hub accessory alongside the lock, which means HomeKit
+// groups them into a single tile. When the separate accessory feature option is enabled we give each sensor an accessory of its own so that it gets a
+// dedicated tile and the hub accessory is left showing just the lock. Toggling the option moves the sensor between the two, cleaning up the side it left.
+function resolveSensorHost(hub: AccessHub, subtype: AccessReservedNames, name: string, isEnabled: boolean): PlatformAccessory {
+
+  // There's nothing to split out if we're not exposing this sensor in the first place.
+  if(isEnabled && hub.hints.separateSensors) {
+
+    const accessory = hub.controller.acquireChildAccessory(hub, subtype, name);
+
+    hub.sensorAccessories[subtype] = accessory;
+    hub.configureChildInfo(accessory, subtype, name);
+
+    // Make sure we haven't left a stale copy of the sensor behind on the hub accessory.
+    validService(hub.accessory, hub.hap.Service.ContactSensor, false, subtype);
+
+    return accessory;
+  }
+
+  // This sensor belongs on the hub accessory, so retire any dedicated accessory we created for it previously.
+  delete hub.sensorAccessories[subtype];
+  hub.controller.releaseChildAccessory(hub, subtype);
+
+  return hub.accessory;
+}
+
 // Configure contact sensors for HomeKit. Availability is determined by a combination of hub model, what's been configured on the hub, and feature options.
 export function configureTerminalInputs(hub: AccessHub): boolean {
 
@@ -452,9 +480,13 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
 
     const hint = ('hasWiring' + input) as HasWiringHintKey;
     const reservedId = AccessReservedNames[('CONTACT_' + input.toUpperCase()) as keyof typeof AccessReservedNames];
+    const serviceName = hub.accessoryName + ' ' + label;
+
+    // Work out whether this sensor lives on the hub accessory or on one of its own.
+    const host = resolveSensorHost(hub, reservedId, serviceName, hub.hints[hint]);
 
     // Validate whether we should have this service enabled.
-    if(!validService(hub.accessory, hub.hap.Service.ContactSensor, (hasService: boolean) => {
+    if(!validService(host, hub.hap.Service.ContactSensor, (hasService: boolean) => {
 
       if(!hub.hints[hint] && hasService) {
 
@@ -468,7 +500,7 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
     }
 
     // Acquire the service.
-    const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' ' + label, reservedId,
+    const service = acquireService(host, hub.hap.Service.ContactSensor, serviceName, reservedId,
       () => hub.log.info('Enabling the ' + label.toLowerCase() + '.'));
 
     if(!service) {
@@ -496,8 +528,13 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
     return false;
   }
 
+  const serviceName = hub.accessoryName + ' Side Door Position Sensor';
+
+  // Work out whether this sensor lives on the hub accessory or on one of its own.
+  const host = resolveSensorHost(hub, AccessReservedNames.CONTACT_DPS_SIDE, serviceName, hub.hints.hasWiringSideDoorDps);
+
   // Validate whether we should have this service enabled. We check the hasWiringSideDoorDps hint which already incorporates the feature option check.
-  if(!validService(hub.accessory, hub.hap.Service.ContactSensor, (hasService: boolean) => {
+  if(!validService(host, hub.hap.Service.ContactSensor, (hasService: boolean) => {
 
     if(!hub.hints.hasWiringSideDoorDps && hasService) {
 
@@ -511,8 +548,8 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' Side Door Position Sensor',
-    AccessReservedNames.CONTACT_DPS_SIDE, () => hub.log.info('Enabling the side door position sensor.'));
+  const service = acquireService(host, hub.hap.Service.ContactSensor, serviceName, AccessReservedNames.CONTACT_DPS_SIDE,
+    () => hub.log.info('Enabling the side door position sensor.'));
 
   if(!service) {
 
@@ -884,7 +921,7 @@ export function updateSideDoorServiceNames(hub: AccessHub): void {
 
     const serviceType = subtype === AccessReservedNames.LOCK_DOOR_SIDE ? hub.hap.Service.LockMechanism :
       subtype === AccessReservedNames.CONTACT_DPS_SIDE ? hub.hap.Service.ContactSensor : hub.hap.Service.Switch;
-    const service = hub.accessory.getServiceById(serviceType, subtype);
+    const service = sensorHost(hub, subtype).getServiceById(serviceType, subtype);
 
     if(!service) {
 
@@ -899,6 +936,16 @@ export function updateSideDoorServiceNames(hub: AccessHub): void {
     if(service.testCharacteristic(hub.hap.Characteristic.ConfiguredName)) {
 
       service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, serviceName);
+    }
+
+    // If this service has an accessory of its own, the accessory carries the same name as the service it hosts.
+    const childAccessory = hub.sensorAccessories[subtype];
+
+    if(childAccessory) {
+
+      childAccessory.displayName = serviceName;
+      childAccessory._associatedHAPAccessory.displayName = serviceName;
+      childAccessory.getService(hub.hap.Service.AccessoryInformation)?.updateCharacteristic(hub.hap.Characteristic.Name, serviceName);
     }
   }
 }

@@ -167,6 +167,17 @@ export function createMockAccessory(uuid = 'test-uuid') {
   return accessory;
 }
 
+// A constructible stand-in for Homebridge's PlatformAccessory. This has to be a declared function rather than an arrow, since the plugin creates accessories
+// with `new`.
+function mockPlatformAccessory(name: string, uuid: string) {
+
+  const accessory = createMockAccessory(uuid);
+
+  accessory.displayName = name;
+
+  return accessory;
+}
+
 // Create a mock API.
 export function createMockAPI() {
 
@@ -178,7 +189,7 @@ export function createMockAPI() {
 
     on: vi.fn(),
 
-    platformAccessory: vi.fn().mockImplementation((name: string, uuid: string) => createMockAccessory(uuid)),
+    platformAccessory: vi.fn(mockPlatformAccessory),
 
     registerPlatformAccessories: vi.fn(),
     unregisterPlatformAccessories: vi.fn(),

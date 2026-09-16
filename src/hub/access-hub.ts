@@ -17,7 +17,7 @@ import { registerEventHandlers } from './access-hub-events.js';
 import { configureMqtt } from './access-hub-mqtt.js';
 import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
-  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, setContactSensorState,
+  checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, sensorHost, setContactSensorState,
 } from './access-hub-utils.js';
 
 // Merge the declarations into the definition of the class, so TypeScript knows that these properties will exist.
@@ -75,6 +75,9 @@ export class AccessHub extends AccessDevice {
   public sideDoorGateTransitionUntil: number;
   public uda: AccessDeviceConfig;
 
+  // Contact sensors we've split out onto their own HomeKit accessories, keyed by the reserved name of the service they host.
+  public readonly sensorAccessories: Partial<Record<AccessReservedNames, PlatformAccessory>> = {};
+
   // Internal event bus for state-change reactions.
   public readonly hubEvents = new HubEventBus();
 
@@ -127,6 +130,7 @@ export class AccessHub extends AccessDevice {
     this.hints.hasWiringRen = this.catalog.hasRen && this.hasFeature('Hub.REN');
     this.hints.hasWiringRex = this.catalog.hasRex && this.hasFeature('Hub.REX');
     this.hints.hasWiringSideDoorDps = this.hints.hasSideDoor && this.hasFeature('Hub.SideDoor.DPS');
+    this.hints.separateSensors = this.hasFeature('Hub.Sensors.SeparateAccessory');
     this.hints.logDoorbell = this.hasFeature('Log.Doorbell');
     this.hints.logDps = this.hasFeature('Log.DPS');
     this.hints.logLock = this.hasFeature('Log.Lock');
@@ -141,6 +145,12 @@ export class AccessHub extends AccessDevice {
     }
 
     return true;
+  }
+
+  // The contact sensor accessories we've split off from this hub.
+  public override get childAccessories(): PlatformAccessory[] {
+
+    return Object.values(this.sensorAccessories).filter((accessory): accessory is PlatformAccessory => !!accessory);
   }
 
   // Override to prefer the door name over the device alias for UA Gate hubs.
@@ -163,6 +173,8 @@ export class AccessHub extends AccessDevice {
     }
 
     updateSideDoorServiceNames(this);
+
+    this.refreshChildInfo();
 
     return this.setInfo(this.accessory, this.uda);
   }
@@ -230,7 +242,7 @@ export class AccessHub extends AccessDevice {
   // HomeKit DPS state property accessor. Reads from the contact sensor service if available, otherwise falls back to the backing variable.
   public get hkDpsState(): CharacteristicValue {
 
-    const service = this.accessory.getServiceById(this.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS);
+    const service = sensorHost(this, AccessReservedNames.CONTACT_DPS).getServiceById(this.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS);
 
     if(service) {
 

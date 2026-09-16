@@ -335,7 +335,20 @@ export class AccessController {
       this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test('Device',
         (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string, this.id)));
 
-    for(const accessory of this.platform.accessories) {
+    // Iterate over a copy - removing an accessory mutates the underlying array.
+    for(const accessory of [...this.platform.accessories]) {
+
+      // Child accessories are owned by their parent device rather than by device discovery, so they're never orphans in their own right. Leave them be while
+      // their parent is still configured, and clean them up when it no longer is.
+      if(accessory.context.childOf) {
+
+        if(!this.configuredDevices[accessory.context.childOf as string]) {
+
+          this.removeChildAccessory(accessory);
+        }
+
+        continue;
+      }
 
       const accessDevice = this.configuredDevices[accessory.UUID];
 
@@ -386,6 +399,68 @@ export class AccessController {
     return device.display_model ?? device.model ?? device.device_type ?? 'Unknown Model';
   }
 
+  // Acquire a child accessory for an Access device, registering it with HomeKit if we haven't already. Child accessories let us expose an individual service,
+  // such as a door position sensor, as its own HomeKit accessory so that it appears as a dedicated tile rather than being grouped with the lock on the
+  // device's primary accessory.
+  public acquireChildAccessory(device: AccessDevice, subtype: string, name: string): PlatformAccessory {
+
+    // Derive the child's identity from its parent so that it remains stable across restarts.
+    const uuid = this.hap.uuid.generate(device.accessory.UUID + '.' + subtype);
+
+    let accessory = this.platform.accessories.find(x => x.UUID === uuid);
+
+    if(!accessory) {
+
+      accessory = new this.api.platformAccessory(sanitizeName(name), uuid);
+
+      this.log.info('%s: Adding %s to HomeKit as a separate accessory.', this.udaApi.getFullName(device.uda), name);
+
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      this.platform.accessories.push(accessory);
+      this.api.updatePlatformAccessories(this.platform.accessories);
+    }
+
+    // Tag the child so that we can recognize it on subsequent startups and tie its lifecycle to its parent.
+    accessory.context = {};
+    accessory.context.mac = device.uda.mac;
+    accessory.context.controller = this.uda.host.mac;
+    accessory.context.childOf = device.accessory.UUID;
+    accessory.context.childSubtype = subtype;
+
+    return accessory;
+  }
+
+  // Remove a child accessory of an Access device from HomeKit, if it exists.
+  public releaseChildAccessory(device: AccessDevice, subtype: string): void {
+
+    const uuid = this.hap.uuid.generate(device.accessory.UUID + '.' + subtype);
+    const accessory = this.platform.accessories.find(x => x.UUID === uuid);
+
+    if(!accessory) {
+
+      return;
+    }
+
+    this.removeChildAccessory(accessory);
+  }
+
+  // Unregister a child accessory from HomeKit. Child accessories have no AccessDevice instance of their own, so they bypass the device removal machinery.
+  private removeChildAccessory(accessory: PlatformAccessory): void {
+
+    const index = this.platform.accessories.indexOf(accessory);
+
+    if(index < 0) {
+
+      return;
+    }
+
+    this.log.info('%s: Removing the separate accessory from HomeKit.', accessory.displayName);
+
+    this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    this.platform.accessories.splice(index, 1);
+    this.api.updatePlatformAccessories(this.platform.accessories);
+  }
+
   // Remove an individual Access device from HomeKit.
   public removeHomeKitDevice(accessory: PlatformAccessory, noRemovalDelay = false): void {
 
@@ -397,6 +472,14 @@ export class AccessController {
 
     // We only remove devices if they're on the Access controller we're interested in.
     if(accessory.context.controller !== this.uda.host.mac) {
+
+      return;
+    }
+
+    // Child accessories aren't Access devices, so they bypass the device removal machinery entirely.
+    if(accessory.context.childOf) {
+
+      this.removeChildAccessory(accessory);
 
       return;
     }
@@ -438,6 +521,12 @@ export class AccessController {
 
     // Cleanup our device instance.
     accessDevice?.cleanup();
+
+    // Remove any child accessories we've split out from this device. They have no existence of their own once their parent is gone.
+    for(const child of this.platform.accessories.filter(x => x.context.childOf === accessory.UUID)) {
+
+      this.removeChildAccessory(child);
+    }
 
     // Finally, remove it from our list of configured devices and HomeKit.
     delete this.configuredDevices[accessory.UUID];

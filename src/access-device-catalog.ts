@@ -257,5 +257,6 @@ export const modelsRel = modelsWithCapability(e => e.hasRel);
 export const modelsRen = modelsWithCapability(e => e.hasRen);
 export const modelsRex = modelsWithCapability(e => e.hasRex);
 export const modelsSideDoor = modelsWithCapability(e => e.supportsSideDoor);
+export const modelsSensors = modelsWithCapability(e => e.hasDps || e.hasRel || e.hasRen || e.hasRex || e.supportsSideDoor);
 export const modelsDefaultGarageDoor = modelsWithCapability(e => e.defaultDoorService === 'GarageDoorOpener');
 export const modelsDefaultLock = modelsWithCapability(e => (e.defaultDoorService === 'Lock') && !e.appendsSourceId && !e.usesConfigsApi);

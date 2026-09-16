@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Separate sensor accessories**: New `Hub.Sensors.SeparateAccessory` feature option. When enabled, each door sensor (door position, remote release, request to enter, request to exit, and the UA Gate side door position sensor) is exposed as its own HomeKit accessory rather than being added to the hub accessory alongside the lock. This leaves the hub accessory showing just the lock, so the lock is directly operable from the Home app's room view instead of requiring you to open the accessory first. Disabled by default; enabling it changes the identity of the sensors in HomeKit, so automations, room assignments, and names set for them will need to be set again. ([#5](https://github.com/mp-consulting/homebridge-unifi-access/issues/5))
+
 ## [1.1.4] - 2026-09-10
 
 ### Changed

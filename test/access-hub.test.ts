@@ -204,18 +204,53 @@ function createHubController(overrides: Record<string, unknown> = {}) {
     unlock: vi.fn().mockResolvedValue(true),
   };
 
+  // Child accessories handed out by acquireChildAccessory, keyed by subtype.
+  const childAccessories = new Map<string, ReturnType<typeof createTestAccessory>>();
+
   return {
 
+    acquireChildAccessory: vi.fn((device: any, subtype: string, name: string) => {
+
+      let child = childAccessories.get(subtype);
+
+      if(!child) {
+
+        child = createTestAccessory('uuid-' + device.accessory.UUID + '.' + subtype);
+        child.displayName = name;
+        childAccessories.set(subtype, child);
+        platform.accessories.push(child);
+      }
+
+      return child;
+    }),
+
     api,
+    childAccessories,
     config: { address: '192.168.1.1', mqttTopic: 'unifi/access', password: 'test', username: 'admin' },
     configuredDevices: {} as Record<string, unknown>,
     events,
-    hasFeature: vi.fn().mockReturnValue(true),
+
+    // Every feature option is on by default, apart from the separate accessory option - that one rearranges where services live, so leaving it off keeps the
+    // mock on the plugin's default accessory layout. Tests that want the separate layout override hasFeature.
+    hasFeature: vi.fn((option: string) => option !== 'Hub.Sensors.SeparateAccessory'),
+
     id: '001122334455',
     log,
     logApiErrors: true,
     mqtt: null as any,
     platform,
+
+    releaseChildAccessory: vi.fn((_device: any, subtype: string) => {
+
+      const child = childAccessories.get(subtype);
+
+      if(child) {
+
+        platform.accessories.splice(platform.accessories.indexOf(child), 1);
+        childAccessories.delete(subtype);
+      }
+    }),
+
     removeHomeKitDevice: vi.fn(),
     deviceLookup: vi.fn(),
     uda: { host: { firmware_version: '4.0.0', mac: '00:11:22:33:44:55' } },
@@ -1340,6 +1375,121 @@ describe('AccessHub', () => {
       // The MQTT publish during initialization confirms the state was set.
       // We can't directly check private state, but the initialization should not throw.
       expect(controller.events.listenerCount('door-1')).toBeGreaterThan(0);
+    });
+  });
+
+  describe('separate sensor accessories', () => {
+
+    // Turn on the separate accessory feature option. We leave Door.UseGarageOpener off so that the hub keeps a lock accessory, which is the layout this
+    // feature option exists to clean up.
+    function enableSeparateSensors(): void {
+
+      controller.hasFeature = vi.fn((option: string) => option !== 'Hub.Door.UseGarageOpener') as any;
+    }
+
+    it('should keep sensors on the hub accessory by default', () => {
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      expect(accessory.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS)).toBeDefined();
+      expect(hub.sensorAccessories[AccessReservedNames.CONTACT_DPS]).toBeUndefined();
+      expect(hub.childAccessories).toHaveLength(0);
+      expect(controller.acquireChildAccessory).not.toHaveBeenCalled();
+    });
+
+    it('should move each sensor onto its own accessory when enabled', () => {
+
+      enableSeparateSensors();
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      // A UAH wires all four terminal inputs, so each one should have an accessory of its own.
+      expect(hub.childAccessories).toHaveLength(4);
+
+      for(const subtype of [ AccessReservedNames.CONTACT_DPS, AccessReservedNames.CONTACT_REL, AccessReservedNames.CONTACT_REN,
+        AccessReservedNames.CONTACT_REX ]) {
+
+        const child = hub.sensorAccessories[subtype];
+
+        expect(child).toBeDefined();
+        expect(child?.getServiceById('ContactSensor', subtype)).toBeDefined();
+        expect(accessory.getServiceById('ContactSensor', subtype)).toBeUndefined();
+      }
+    });
+
+    it('should leave the lock on the hub accessory', () => {
+
+      enableSeparateSensors();
+
+      new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      expect(accessory.getService('LockMechanism')).toBeDefined();
+    });
+
+    it('should give each sensor accessory its own name and serial number', () => {
+
+      enableSeparateSensors();
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS];
+      const info = child?.getService('AccessoryInformation');
+
+      expect(child?.displayName).toBe('Test Hub Door Position Sensor');
+      expect(info?.getCharacteristic('Name').value).toBe('Test Hub Door Position Sensor');
+      expect(info?.getCharacteristic('SerialNumber').value).toBe('AABBCCDDEEFF-' + AccessReservedNames.CONTACT_DPS);
+    });
+
+    it('should read and write DPS state through the sensor accessory', () => {
+
+      enableSeparateSensors();
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+      const service = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS]?.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS);
+
+      hub.hkDpsState = hub.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+
+      expect(service.getCharacteristic(hub.hap.Characteristic.ContactSensorState).value).toBe(1);
+      expect(hub.hkDpsState).toBe(1);
+    });
+
+    it('should propagate a hub rename to its sensor accessories', () => {
+
+      enableSeparateSensors();
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS];
+
+      hub.accessoryName = 'Front Door';
+
+      expect(child?.displayName).toBe('Front Door Door Position Sensor');
+      expect(child?.getService('AccessoryInformation')?.getCharacteristic('Name').value).toBe('Front Door Door Position Sensor');
+    });
+
+    it('should return sensors to the hub accessory when the option is turned off', () => {
+
+      enableSeparateSensors();
+      new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      expect(controller.childAccessories.size).toBe(4);
+
+      // Rebuild the hub with the option turned off, as would happen on a restart after the user changes their configuration.
+      controller.hasFeature = vi.fn((option: string) => option !== 'Hub.Sensors.SeparateAccessory') as any;
+
+      const rebuilt = new AccessHub(controller as any, createUAHConfig(), createTestAccessory('rebuilt-uuid') as any);
+
+      expect(controller.childAccessories.size).toBe(0);
+      expect(rebuilt.childAccessories).toHaveLength(0);
+    });
+
+    it('should split the side door position sensor on a UGT', () => {
+
+      enableSeparateSensors();
+
+      const hub = new AccessHub(controller as any, createUGTConfig(), accessory as any);
+      const child = hub.sensorAccessories[AccessReservedNames.CONTACT_DPS_SIDE];
+
+      expect(child).toBeDefined();
+      expect(child?.getServiceById('ContactSensor', AccessReservedNames.CONTACT_DPS_SIDE)).toBeDefined();
     });
   });
 
