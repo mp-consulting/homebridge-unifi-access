@@ -10,7 +10,7 @@ import { AccessReservedNames } from '../access-types.js';
 import { AUTO_LOCK_DELAY_MS } from './access-hub-types.js';
 import type { AccessHub } from './access-hub.js';
 import { normalizeMac } from '../settings.js';
-import { toDpsState, toLockState } from './access-hub-utils.js';
+import { serviceHost, toDpsState, toLockState } from './access-hub-utils.js';
 
 // Unified utility function to execute lock and unlock actions on a hub door.
 export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isSideDoor = false): Promise<boolean> {
@@ -250,7 +250,7 @@ export function initializeDoorState(hub: AccessHub, doorData: { door_position_st
     hub._hkSideDoorLockState = newLockState;
 
     // Update the side door contact sensor service directly since it was already created before door discovery.
-    hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
+    serviceHost(hub, AccessReservedNames.CONTACT_DPS_SIDE).getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
       ?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, newDpsState);
   } else {
 

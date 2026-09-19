@@ -90,6 +90,11 @@ export function areWiringKeysActive(configs: { key: string; value: string }[] | 
   return wiringKeys.every(wire => configs?.some(e => (e.key === wire) && (e.value === 'on')));
 }
 
+// Identifiers for the groups of services that can be moved onto a HomeKit accessory of their own. Sensors use their reserved name as their own group, since
+// each one gets a dedicated tile, while the access methods and the doorbell each share a single accessory.
+export const ACCESSORY_GROUP_ACCESS_METHODS = 'AccessMethods';
+export const ACCESSORY_GROUP_DOORBELL = 'Doorbell';
+
 // Proxy mode configuration key for UA Ultra devices.
 export const REX_BUTTON_MODE_CONFIG_KEY = 'rex_button_mode';
 

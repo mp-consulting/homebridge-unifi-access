@@ -3,15 +3,18 @@
  *
  * access-hub-services.ts: HomeKit service configuration and state-change reactions for the UniFi Access hub.
  */
-import type { CharacteristicValue } from 'homebridge';
+import type { CharacteristicValue, PlatformAccessory, Service, WithUUID } from 'homebridge';
 import type { SensorInput } from '../access-device-catalog.js';
 import { AccessReservedNames } from '../access-types.js';
 import { acquireService, sanitizeName, validService } from '../lib/index.js';
-import { GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey, type HubEventMap, terminalInputs } from './access-hub-types.js';
+import {
+  ACCESSORY_GROUP_ACCESS_METHODS, ACCESSORY_GROUP_DOORBELL, GATE_TRANSITION_COOLDOWN_MS, accessMethods, getConfigValue, type HasWiringHintKey,
+  type HubEventMap, terminalInputs,
+} from './access-hub-types.js';
 import { HK_CHARACTERISTIC_REVERT_DELAY_MS } from '../settings.js';
 import type { AccessHub } from './access-hub.js';
 import { hubDoorLockCommand } from './access-hub-api.js';
-import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired } from './access-hub-utils.js';
+import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired, serviceHost } from './access-hub-utils.js';
 
 // Start a 3-phase gate cycle: Opening → Open → Closing. The full gateDirectionDuration is split into equal thirds. DPS "close" confirms the final Closed state.
 function startGateCycle(hub: AccessHub): void {
@@ -215,7 +218,7 @@ export function registerServiceReactions(hub: AccessHub): void {
     // Side door DPS: update the side door contact sensor and return — the GarageDoorOpener only reflects main door state.
     if(data.isSideDoor) {
 
-      hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
+      serviceHost(hub, AccessReservedNames.CONTACT_DPS_SIDE).getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE)
         ?.updateCharacteristic(hub.hap.Characteristic.ContactSensorState, data.value);
 
       return;
@@ -279,13 +282,15 @@ export function registerServiceReactions(hub: AccessHub): void {
   // React to doorbell ring events by updating the doorbell trigger switch.
   hub.hubEvents.on('doorbell:ring', () => {
 
-    hub.accessory.getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)?.updateCharacteristic(hub.hap.Characteristic.On, true);
+    serviceHost(hub, ACCESSORY_GROUP_DOORBELL).getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)
+      ?.updateCharacteristic(hub.hap.Characteristic.On, true);
   });
 
   // React to doorbell cancel events by updating the doorbell trigger switch.
   hub.hubEvents.on('doorbell:cancel', () => {
 
-    hub.accessory.getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)?.updateCharacteristic(hub.hap.Characteristic.On, false);
+    serviceHost(hub, ACCESSORY_GROUP_DOORBELL).getServiceById(hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER)
+      ?.updateCharacteristic(hub.hap.Characteristic.On, false);
   });
 
   // Log sensor state changes (REL, REN, REX - DPS is logged by dps:changed).
@@ -316,7 +321,9 @@ export function registerServiceReactions(hub: AccessHub): void {
 
     for(const sensor of Object.keys(AccessReservedNames).filter(key => key.startsWith('CONTACT_'))) {
 
-      hub.accessory.getServiceById(hub.hap.Service.ContactSensor, AccessReservedNames[sensor as keyof typeof AccessReservedNames])?.
+      const subtype = AccessReservedNames[sensor as keyof typeof AccessReservedNames];
+
+      serviceHost(hub, subtype).getServiceById(hub.hap.Service.ContactSensor, subtype)?.
         updateCharacteristic(hub.hap.Characteristic.StatusActive, data.isOnline);
     }
   });
@@ -325,17 +332,27 @@ export function registerServiceReactions(hub: AccessHub): void {
 // Configure the access method switches for HomeKit.
 function configureAccessMethodSwitches(hub: AccessHub): boolean {
 
+  // Whether a given access method should be exposed at all.
+  const isEnabled = (accessMethod: typeof accessMethods[number]): boolean =>
+    hasCapability(hub, 'is_reader') && hasCapability(hub, accessMethod.capability) && hub.hasFeature(accessMethod.option);
+
+  // The access methods share a single accessory rather than getting one each - they're configuration toggles rather than state worth seeing at a glance, and a
+  // tile apiece would bury everything else. We only split them out if there's at least one switch to put there.
+  const host = resolveServiceHost(hub, ACCESSORY_GROUP_ACCESS_METHODS, hub.accessoryName + ' Access Methods',
+    hub.hints.separateAccessMethods && accessMethods.some(accessMethod => isEnabled(accessMethod)));
+
   for(const accessMethod of accessMethods) {
 
+    clearRelocatedService(hub, host, hub.hap.Service.Switch, accessMethod.subtype);
+
     // Validate whether we should have this service enabled.
-    if(!validService(hub.accessory, hub.hap.Service.Switch,
-      hasCapability(hub, 'is_reader') && hasCapability(hub, accessMethod.capability) && hub.hasFeature(accessMethod.option), accessMethod.subtype)) {
+    if(!validService(host, hub.hap.Service.Switch, isEnabled(accessMethod), accessMethod.subtype)) {
 
       continue;
     }
 
     // Acquire the service.
-    const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + ' ' + accessMethod.name, accessMethod.subtype);
+    const service = acquireService(host, hub.hap.Service.Switch, hub.accessoryName + ' ' + accessMethod.name, accessMethod.subtype);
 
     if(!service) {
 
@@ -384,17 +401,30 @@ function configureAccessMethodSwitches(hub: AccessHub): boolean {
   return true;
 }
 
+// Determine which accessory hosts the doorbell and its automation trigger. The two travel together so that they share a single tile rather than producing one
+// each. The doorbell is the primary service wherever it lives, so leaving it on the hub accessory is what makes that tile a doorbell rather than a lock.
+function doorbellHost(hub: AccessHub): PlatformAccessory {
+
+  const hasDoorbell = hasCapability(hub, 'door_bell') && (hub.hasFeature('Hub.Doorbell') || hub.hasFeature('Hub.Doorbell.Trigger'));
+
+  return resolveServiceHost(hub, ACCESSORY_GROUP_DOORBELL, hub.accessoryName + ' Doorbell', hub.hints.separateDoorbell && hasDoorbell);
+}
+
 // Configure the doorbell service for HomeKit.
 function configureDoorbell(hub: AccessHub): boolean {
 
+  const host = doorbellHost(hub);
+
+  clearRelocatedService(hub, host, hub.hap.Service.Doorbell);
+
   // Validate whether we should have this service enabled.
-  if(!validService(hub.accessory, hub.hap.Service.Doorbell, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell'))) {
+  if(!validService(host, hub.hap.Service.Doorbell, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell'))) {
 
     return false;
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.Doorbell, hub.accessoryName, undefined, () => hub.log.info('Enabling the doorbell.'));
+  const service = acquireService(host, hub.hap.Service.Doorbell, hub.accessoryName, undefined, () => hub.log.info('Enabling the doorbell.'));
 
   if(!service) {
 
@@ -411,15 +441,19 @@ function configureDoorbell(hub: AccessHub): boolean {
 // Configure a switch to manually trigger a doorbell ring event for HomeKit.
 function configureDoorbellTrigger(hub: AccessHub): boolean {
 
+  const host = doorbellHost(hub);
+
+  clearRelocatedService(hub, host, hub.hap.Service.Switch, AccessReservedNames.SWITCH_DOORBELL_TRIGGER);
+
   // Validate whether we should have this service enabled.
-  if(!validService(hub.accessory, hub.hap.Service.Switch, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell.Trigger'),
+  if(!validService(host, hub.hap.Service.Switch, hasCapability(hub, 'door_bell') && hub.hasFeature('Hub.Doorbell.Trigger'),
     AccessReservedNames.SWITCH_DOORBELL_TRIGGER)) {
 
     return false;
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.Switch, hub.accessoryName + ' Doorbell Trigger',
+  const service = acquireService(host, hub.hap.Service.Switch, hub.accessoryName + ' Doorbell Trigger',
     AccessReservedNames.SWITCH_DOORBELL_TRIGGER, () => hub.log.info('Enabling the doorbell automation trigger.'));
 
   if(!service) {
@@ -445,6 +479,39 @@ function configureDoorbellTrigger(hub: AccessHub): boolean {
   return true;
 }
 
+// Determine which accessory should host a group of services. By default everything is added to the hub accessory alongside the lock, which means HomeKit groups
+// it all into a single tile and the lock can only be reached by opening the accessory. When the matching separate accessory feature option is enabled we move
+// the group onto an accessory of its own so that it gets a dedicated tile, leaving the hub accessory showing just the lock. Callers pass isSeparate as the
+// combination of the feature option and whether the group has anything to show, so that we never register an accessory with no services on it.
+function resolveServiceHost(hub: AccessHub, group: string, name: string, isSeparate: boolean): PlatformAccessory {
+
+  if(isSeparate) {
+
+    const accessory = hub.controller.acquireChildAccessory(hub, group, name);
+
+    hub.serviceAccessories[group] = accessory;
+    hub.configureChildInfo(accessory, group, name);
+
+    return accessory;
+  }
+
+  // This group belongs on the hub accessory, so retire any dedicated accessory we created for it previously. Unregistering it takes its services with it.
+  delete hub.serviceAccessories[group];
+  hub.controller.releaseChildAccessory(hub, group);
+
+  return hub.accessory;
+}
+
+// Remove a service from the hub accessory once it's been relocated, so that toggling a separate accessory option on doesn't leave a stale copy behind. Moving
+// in the other direction needs no cleanup, since unregistering the child accessory removes everything on it.
+function clearRelocatedService(hub: AccessHub, host: PlatformAccessory, serviceType: WithUUID<typeof Service>, subtype?: string): void {
+
+  if(host !== hub.accessory) {
+
+    validService(hub.accessory, serviceType, false, subtype);
+  }
+}
+
 // Configure contact sensors for HomeKit. Availability is determined by a combination of hub model, what's been configured on the hub, and feature options.
 export function configureTerminalInputs(hub: AccessHub): boolean {
 
@@ -452,9 +519,15 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
 
     const hint = ('hasWiring' + input) as HasWiringHintKey;
     const reservedId = AccessReservedNames[('CONTACT_' + input.toUpperCase()) as keyof typeof AccessReservedNames];
+    const serviceName = hub.accessoryName + ' ' + label;
+
+    // Work out whether this sensor lives on the hub accessory or on one of its own.
+    const host = resolveServiceHost(hub, reservedId, serviceName, hub.hints[hint] && hub.hints.separateSensors);
+
+    clearRelocatedService(hub, host, hub.hap.Service.ContactSensor, reservedId);
 
     // Validate whether we should have this service enabled.
-    if(!validService(hub.accessory, hub.hap.Service.ContactSensor, (hasService: boolean) => {
+    if(!validService(host, hub.hap.Service.ContactSensor, (hasService: boolean) => {
 
       if(!hub.hints[hint] && hasService) {
 
@@ -468,7 +541,7 @@ export function configureTerminalInputs(hub: AccessHub): boolean {
     }
 
     // Acquire the service.
-    const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' ' + label, reservedId,
+    const service = acquireService(host, hub.hap.Service.ContactSensor, serviceName, reservedId,
       () => hub.log.info('Enabling the ' + label.toLowerCase() + '.'));
 
     if(!service) {
@@ -496,8 +569,15 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
     return false;
   }
 
+  const serviceName = hub.accessoryName + ' Side Door Position Sensor';
+
+  // Work out whether this sensor lives on the hub accessory or on one of its own.
+  const host = resolveServiceHost(hub, AccessReservedNames.CONTACT_DPS_SIDE, serviceName, hub.hints.hasWiringSideDoorDps && hub.hints.separateSensors);
+
+  clearRelocatedService(hub, host, hub.hap.Service.ContactSensor, AccessReservedNames.CONTACT_DPS_SIDE);
+
   // Validate whether we should have this service enabled. We check the hasWiringSideDoorDps hint which already incorporates the feature option check.
-  if(!validService(hub.accessory, hub.hap.Service.ContactSensor, (hasService: boolean) => {
+  if(!validService(host, hub.hap.Service.ContactSensor, (hasService: boolean) => {
 
     if(!hub.hints.hasWiringSideDoorDps && hasService) {
 
@@ -511,8 +591,8 @@ function configureSideDoorTerminalInputs(hub: AccessHub): boolean {
   }
 
   // Acquire the service.
-  const service = acquireService(hub.accessory, hub.hap.Service.ContactSensor, hub.accessoryName + ' Side Door Position Sensor',
-    AccessReservedNames.CONTACT_DPS_SIDE, () => hub.log.info('Enabling the side door position sensor.'));
+  const service = acquireService(host, hub.hap.Service.ContactSensor, serviceName, AccessReservedNames.CONTACT_DPS_SIDE,
+    () => hub.log.info('Enabling the side door position sensor.'));
 
   if(!service) {
 
@@ -884,7 +964,7 @@ export function updateSideDoorServiceNames(hub: AccessHub): void {
 
     const serviceType = subtype === AccessReservedNames.LOCK_DOOR_SIDE ? hub.hap.Service.LockMechanism :
       subtype === AccessReservedNames.CONTACT_DPS_SIDE ? hub.hap.Service.ContactSensor : hub.hap.Service.Switch;
-    const service = hub.accessory.getServiceById(serviceType, subtype);
+    const service = serviceHost(hub, subtype).getServiceById(serviceType, subtype);
 
     if(!service) {
 
@@ -899,6 +979,16 @@ export function updateSideDoorServiceNames(hub: AccessHub): void {
     if(service.testCharacteristic(hub.hap.Characteristic.ConfiguredName)) {
 
       service.updateCharacteristic(hub.hap.Characteristic.ConfiguredName, serviceName);
+    }
+
+    // If this service has an accessory of its own, the accessory carries the same name as the service it hosts.
+    const childAccessory = hub.serviceAccessories[subtype];
+
+    if(childAccessory) {
+
+      childAccessory.displayName = serviceName;
+      childAccessory._associatedHAPAccessory.displayName = serviceName;
+      childAccessory.getService(hub.hap.Service.AccessoryInformation)?.updateCharacteristic(hub.hap.Characteristic.Name, serviceName);
     }
   }
 }

@@ -7,14 +7,14 @@
 import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from '../unifi/index.js';
 import { AccessEventType } from '../access-types.js';
 import {
-  AUTO_LOCK_DELAY_MS, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate, type AccessMethodKey, type HasWiringHintKey,
-  accessMethods, terminalInputs,
+  ACCESSORY_GROUP_ACCESS_METHODS, ACCESSORY_GROUP_DOORBELL, AUTO_LOCK_DELAY_MS, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate,
+  type AccessMethodKey, type HasWiringHintKey, accessMethods, terminalInputs,
 } from './access-hub-types.js';
 import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from '../access-device-catalog.js';
 import type { AccessHub, HkStateKey } from './access-hub.js';
 import { configureTerminalInputs, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
-  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, toDpsState, toLockState,
+  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, serviceHost, toDpsState, toLockState,
 } from './access-hub-utils.js';
 
 // Register external event handlers on the controller's event emitter. This is the entry point for all UniFi Access API events.
@@ -212,7 +212,8 @@ function handleDeviceUpdateV2(hub: AccessHub, packet: AccessEventPacket): void {
 
       if(accessMethod) {
 
-        hub.accessory.getServiceById(hub.hap.Service.Switch, accessMethod.subtype)?.updateCharacteristic(hub.hap.Characteristic.On, value === 'yes');
+        serviceHost(hub, ACCESSORY_GROUP_ACCESS_METHODS).getServiceById(hub.hap.Service.Switch, accessMethod.subtype)
+          ?.updateCharacteristic(hub.hap.Characteristic.On, value === 'yes');
       }
     }
   }
@@ -316,7 +317,7 @@ function handleDoorbellRing(hub: AccessHub, packet: AccessEventPacket): void {
   hub.doorbellRingRequestId = (packet.data as AccessEventDoorbellRing).request_id;
 
   // Trigger the doorbell event in HomeKit.
-  hub.accessory.getService(hub.hap.Service.Doorbell)?.getCharacteristic(hub.hap.Characteristic.ProgrammableSwitchEvent)
+  serviceHost(hub, ACCESSORY_GROUP_DOORBELL).getService(hub.hap.Service.Doorbell)?.getCharacteristic(hub.hap.Characteristic.ProgrammableSwitchEvent)
     ?.sendEventNotification(hub.hap.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS);
 
   // Emit on the hub event bus for trigger switch and MQTT.

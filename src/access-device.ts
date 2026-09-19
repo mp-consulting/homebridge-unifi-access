@@ -42,6 +42,9 @@ export interface AccessHints {
   logRex: boolean;
   motionDuration: number;
   occupancyDuration: number;
+  separateAccessMethods: boolean;
+  separateDoorbell: boolean;
+  separateSensors: boolean;
   syncName: boolean;
 }
 
@@ -176,7 +179,30 @@ export abstract class AccessDevice extends AccessBase {
       this.accessoryName = this.uda.alias;
     }
 
+    this.refreshChildInfo();
+
     return this.setInfo(this.accessory, this.uda);
+  }
+
+  // Keep the accessory information on our child accessories - model, firmware revision, and the like - in step with the device they belong to.
+  protected refreshChildInfo(): void {
+
+    for(const accessory of this.childAccessories) {
+
+      this.configureChildInfo(accessory, accessory.context.childSubtype as string, accessory.displayName);
+    }
+  }
+
+  // Configure the accessory information for a child accessory we've split off from this device, giving it a name and serial number of its own so that HomeKit
+  // treats it as a distinct piece of hardware rather than a duplicate of its parent.
+  public configureChildInfo(accessory: PlatformAccessory, subtype: string, name: string): void {
+
+    this.setInfo(accessory, this.uda);
+
+    const info = accessory.getService(this.hap.Service.AccessoryInformation);
+
+    info?.updateCharacteristic(this.hap.Characteristic.Name, sanitizeName(name));
+    info?.updateCharacteristic(this.hap.Characteristic.SerialNumber, normalizeMac(this.uda.mac) + '-' + subtype);
   }
 
   // Cleanup our event handlers and any other activities as needed.
@@ -497,6 +523,13 @@ export abstract class AccessDevice extends AccessBase {
     return this.controller.udaApi.getFullName(this.uda);
   }
 
+  // The accessories this device has split out onto their own HomeKit tiles. Subclasses that use child accessories override this so that name synchronization
+  // reaches them.
+  public get childAccessories(): PlatformAccessory[] {
+
+    return [];
+  }
+
   // Utility function to return the name that configureInfo would sync to. Subclasses may override to use a different source (e.g., door name).
   public get resolvedName(): string | undefined {
 
@@ -523,18 +556,39 @@ export abstract class AccessDevice extends AccessBase {
     // Set all the HomeKit-visible names.
     this.accessory.getService(this.hap.Service.AccessoryInformation)?.updateCharacteristic(this.hap.Characteristic.Name, cleanedName);
 
-    // Propagate the new name to all services on the accessory.
-    for(const service of this.accessory.services) {
+    // Derive a new name by swapping out the old accessory name prefix, or undefined if the name isn't ours to rename.
+    const rename = (current: string): string | undefined => (oldName.length && current.startsWith(oldName)) ? cleanedName + current.slice(oldName.length) :
+      undefined;
 
-      if(service.UUID === this.hap.Service.AccessoryInformation.UUID) {
+    // Propagate the new name to all our services, including those living on child accessories.
+    for(const accessory of [ this.accessory, ...this.childAccessories ]) {
 
-        continue;
+      // Child accessories are named after the service they host, so they get the same prefix substitution their services do.
+      if(accessory !== this.accessory) {
+
+        const newAccessoryName = rename(accessory.displayName);
+
+        if(newAccessoryName) {
+
+          accessory.displayName = newAccessoryName;
+          accessory._associatedHAPAccessory.displayName = newAccessoryName;
+          accessory.getService(this.hap.Service.AccessoryInformation)?.updateCharacteristic(this.hap.Characteristic.Name, newAccessoryName);
+        }
       }
 
-      // Derive the new service name by replacing the old accessory name prefix.
-      if(oldName.length && service.displayName.startsWith(oldName)) {
+      for(const service of accessory.services) {
 
-        const newServiceName = cleanedName + service.displayName.slice(oldName.length);
+        if(service.UUID === this.hap.Service.AccessoryInformation.UUID) {
+
+          continue;
+        }
+
+        const newServiceName = rename(service.displayName);
+
+        if(!newServiceName) {
+
+          continue;
+        }
 
         service.displayName = newServiceName;
         service.updateCharacteristic(this.hap.Characteristic.Name, newServiceName);

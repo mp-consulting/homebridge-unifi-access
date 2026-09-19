@@ -4,7 +4,7 @@
  * access-options.ts: Feature option and type definitions for UniFi Access.
  */
 import { ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, ACCESS_DEVICE_UNLOCK_INTERVAL, ACCESS_GATE_DIRECTION_DURATION } from './settings.js';
-import { modelsDefaultGarageDoor, modelsDefaultLock, modelsDps, modelsRel, modelsRen, modelsRex, modelsSideDoor } from './access-device-catalog.js';
+import { modelsDefaultGarageDoor, modelsDefaultLock, modelsDps, modelsRel, modelsRen, modelsRex, modelsSensors, modelsSideDoor } from './access-device-catalog.js';
 import type { FeatureOptionEntry } from './lib/index.js';
 
 // Plugin configuration options.
@@ -53,6 +53,7 @@ export const featureOptions: Record<string, AccessFeatureOption[]> = {
   // Access method options.
   'AccessMethod': [
 
+    { default: false, description: 'Put the access method switches on a HomeKit accessory of their own, so that they get their own tile instead of sharing one with the lock. The switches stay grouped together on that tile. Enabling this changes the identity of the switches in HomeKit, so any automations, room assignments, or names you have set for them will need to be set again.', name: 'SeparateAccessory' },
     { default: true, description: 'Add a switch accessory to control the face unlock access method.', hasCapability: ['identity_face_unlock'], name: 'Face' },
     { default: true, description: 'Add a switch accessory to control the hand wave unlock access method.', hasCapability: ['hand_wave'], name: 'Hand' },
     { default: true, description: 'Add a switch accessory to control the mobile unlock access method.', hasCapability: [ 'mobile_unlock_ver2', 'support_mobile_unlock' ], name: 'Mobile' },
@@ -86,6 +87,8 @@ export const featureOptions: Record<string, AccessFeatureOption[]> = {
     { default: false, description: "Add a switch accessory to control the door lock relay. This can be useful in automation scenarios where you want to work around HomeKit's security restrictions and trigger events when a lock or unlock event occurs. This works with both lock and garage door opener accessories.", name: 'Lock.Trigger' },
     { default: true, description: 'Add a doorbell accessory to handle doorbell ring events in HomeKit.', hasCapability: ['door_bell'], name: 'Doorbell' },
     { default: false, description: 'Add a switch accessory for automation scenarios to reflect (but not trigger) doorbell ring events on an Access doorbell.', hasCapability: ['door_bell'], name: 'Doorbell.Trigger' },
+    { default: false, description: 'Put the doorbell, and its automation trigger if you use one, on a HomeKit accessory of their own so that they get their own tile instead of sharing one with the lock. The doorbell is the primary service of whichever accessory it sits on, so leaving it here is what makes the hub tile a doorbell rather than a lock. Enabling this changes the identity of the doorbell in HomeKit, so any automations, room assignments, or names you have set for it will need to be set again.', group: 'Doorbell', hasCapability: ['door_bell'], name: 'Doorbell.SeparateAccessory' },
+    { default: false, description: 'Give each door sensor its own HomeKit accessory so that it appears as a dedicated tile, instead of grouping the sensors with the lock on a single tile. Enabling this changes the identity of the sensors in HomeKit, so any automations, room assignments, or names you have set for them will need to be set again.', modelKey: modelsSensors, name: 'Sensors.SeparateAccessory' },
     { default: true, description: 'Add a contact sensor accessory for the door position sensor.', modelKey: modelsDps, name: 'DPS' },
     { default: true, description: 'Add a contact sensor accessory for the remote release.', modelKey: modelsRel, name: 'REL' },
     { default: true, description: 'Add a contact sensor accessory for the request to enter sensor.', modelKey: modelsRen, name: 'REN' },

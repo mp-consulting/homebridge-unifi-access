@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Separate doorbell accessory**: New `Hub.Doorbell.SeparateAccessory` feature option. When enabled, the doorbell and its automation trigger move onto a HomeKit accessory of their own. The doorbell is the primary service of whichever accessory it sits on, so on a hub that has one, leaving it in place is what makes the tile a doorbell rather than a lock. Disabled by default. ([#5](https://github.com/mp-consulting/homebridge-unifi-access/issues/5))
+- **Separate access method accessory**: New `AccessMethod.SeparateAccessory` feature option. When enabled, the access method switches (face unlock, NFC, PIN, Touch Pass, and the rest) move together onto a HomeKit accessory of their own rather than sharing the hub's tile. Disabled by default. ([#5](https://github.com/mp-consulting/homebridge-unifi-access/issues/5))
+- **Separate sensor accessories**: New `Hub.Sensors.SeparateAccessory` feature option. When enabled, each door sensor (door position, remote release, request to enter, request to exit, and the UA Gate side door position sensor) is exposed as its own HomeKit accessory rather than being added to the hub accessory alongside the lock. This leaves the hub accessory showing just the lock, so the lock is directly operable from the Home app's room view instead of requiring you to open the accessory first. Disabled by default; enabling it changes the identity of the sensors in HomeKit, so automations, room assignments, and names set for them will need to be set again. ([#5](https://github.com/mp-consulting/homebridge-unifi-access/issues/5))
+
 ## [1.1.4] - 2026-09-10
 
 ### Changed
