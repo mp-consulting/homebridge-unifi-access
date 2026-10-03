@@ -68,16 +68,25 @@ function requestOnce(url: string, options: RequestOptions): Promise<RequestRespo
       const maxResponseSize = options.maxResponseSize ?? DEFAULT_MAX_RESPONSE_SIZE;
       let size = 0;
 
+      let isOversized = false;
+
       res.on('data', (chunk: Buffer) => {
+
+        if(isOversized) {
+
+          return;
+        }
 
         size += chunk.length;
 
         if(size > maxResponseSize) {
 
-          const error = new Error('Response exceeds the maximum allowed size of ' + maxResponseSize + ' bytes.');
-
-          reject(error);
-          req.destroy(error);
+          // Reject, then tear the connection down. We deliberately don't hand the error to destroy() - that would re-emit it on the underlying socket, where
+          // nobody may be listening for it once the response has started.
+          isOversized = true;
+          chunks.length = 0;
+          reject(new Error('Response exceeds the maximum allowed size of ' + maxResponseSize + ' bytes.'));
+          req.destroy();
 
           return;
         }
