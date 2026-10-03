@@ -5,10 +5,12 @@
  */
 import type { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
 import { type AccessOptions, featureOptionCategories, featureOptions } from './access-options.js';
-import { ACCESS_MQTT_TOPIC } from './settings.js';
+import { ACCESS_MQTT_TOPIC, ACCESS_TLS_PIN_FILE, isAccessIdentifier } from './settings.js';
+import { AccessTlsPinStore } from './unifi/index.js';
 import { APIEvent } from 'homebridge';
 import { AccessController } from './access-controller.js';
 import { FeatureOptions } from './lib/index.js';
+import path from 'node:path';
 import util from 'node:util';
 
 export class AccessPlatform implements DynamicPlatformPlugin {
@@ -19,14 +21,18 @@ export class AccessPlatform implements DynamicPlatformPlugin {
   private readonly controllers: AccessController[];
   public readonly featureOptions: FeatureOptions;
   public readonly log: Logging;
+  public readonly tlsPins: AccessTlsPinStore;
 
   constructor(log: Logging, config: PlatformConfig | undefined, api: API) {
 
     this.accessories = [];
     this.api = api;
     this.controllers = [];
-    this.featureOptions = new FeatureOptions(featureOptionCategories, featureOptions, config?.options ?? []);
+    this.featureOptions = new FeatureOptions(featureOptionCategories, featureOptions, config?.options ?? [], { isIdentifier: isAccessIdentifier });
     this.log = log;
+
+    // Trust-on-first-use TLS certificate pins for our controllers, persisted in the Homebridge storage path and shared across all controllers.
+    this.tlsPins = new AccessTlsPinStore(path.join(api.user.storagePath(), ACCESS_TLS_PIN_FILE), (message: string) => this.log.error(message));
 
     // Plugin options into our config variables.
     this.config = {
@@ -76,6 +82,9 @@ export class AccessPlatform implements DynamicPlatformPlugin {
     // Avoid a prospective race condition by waiting to configure our controllers until Homebridge is done loading all the cached accessories it knows
     // about, and calling configureAccessory() on each.
     api.on(APIEvent.DID_FINISH_LAUNCHING, this.launchControllers.bind(this));
+
+    // Release our timers and network connections when Homebridge shuts down.
+    api.on(APIEvent.SHUTDOWN, () => this.controllers.forEach(controller => controller.shutdown()));
   }
 
   // This gets called when homebridge restores cached accessories at startup. We intentionally avoid doing anything significant here, and save all that logic
@@ -97,12 +106,17 @@ export class AccessPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  // Utility for debug logging.
+  // Utility for debug logging. We always route to Homebridge's debug log, which only formats and emits messages when Homebridge runs in debug mode (-D). The
+  // debugAll override promotes debug messages to the info level so they're visible regardless.
   public debug(message: string, ...parameters: unknown[]): void {
 
     if(this.config.debugAll) {
 
       this.log.info(util.format(message, ...parameters));
+
+      return;
     }
+
+    this.log.debug(message, ...parameters);
   }
 }

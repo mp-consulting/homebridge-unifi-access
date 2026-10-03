@@ -68,7 +68,7 @@ These option(s) apply to: Access controllers.
 
 | Option                                                                              | Description
 |-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------
-| <A NAME="Controller.DelayDeviceRemoval"></A><CODE>Controller.DelayDeviceRemoval<I>.Value</I></CODE>  | Delay, in seconds, before removing devices that are no longer detected on the Access controller. By default, devices are added and removed in realtime. **(default: 60)**.
+| <A NAME="Controller.DelayDeviceRemoval"></A><CODE>Controller.DelayDeviceRemoval<I>.Value</I></CODE>  | Delay, in seconds, before removing devices that are no longer detected on the Access controller. Set this to 0 to remove devices as soon as they disappear. **(default: 60)**.
 | <A NAME="Controller.Publish.Telemetry"></A>`Controller.Publish.Telemetry`           | Publish all the realtime telemetry received from the Access controller to MQTT. **(default: disabled)**.
 
 #### <A NAME="hub"></A>Hub feature options.

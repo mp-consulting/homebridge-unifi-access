@@ -5,3 +5,5 @@
  */
 export * from './access-api.js';
 export * from './access-types.js';
+export * from './access-api-tls.js';
+export * from './access-tls-pin-store.js';

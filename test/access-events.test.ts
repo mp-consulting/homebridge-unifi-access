@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessEvents } from '../src/access-events.js';
-import { AccessEventType, AccessReservedNames } from '../src/access-types.js';
+import { AccessEventType } from '../src/access-types.js';
 import { createMockController, createMockMqtt } from './mocks/controller.js';
 import { createMockAccessory, createMockService, MockCharacteristic, MockService } from './mocks/homebridge.js';
 import { createMockDeviceConfig, createMockEventPacket } from './mocks/unifi-access.js';
@@ -311,6 +311,7 @@ describe('AccessEvents', () => {
       const mockDevice = {
         accessory: mockAccessory,
         accessoryName: 'Old Name',
+        childAccessories: [],
         configureInfo: vi.fn(),
         hints: { syncName: true },
         isOnline: true,
@@ -330,6 +331,7 @@ describe('AccessEvents', () => {
 
       expect(mockDevice.log.info).toHaveBeenCalledWith(expect.stringContaining('Name change detected'));
       expect(mockDevice.configureInfo).toHaveBeenCalled();
+      expect(controller.platform.api.updatePlatformAccessories).toHaveBeenCalledWith([mockAccessory]);
     });
   });
 
@@ -362,218 +364,4 @@ describe('AccessEvents', () => {
     });
   });
 
-  describe('motionEventHandler', () => {
-
-    it('should trigger motion delivery when MotionSensor service exists', () => {
-
-      const motionService = createMockService(MockService.MotionSensor);
-
-      const mockAccessory = createMockAccessory('acc-uuid');
-
-      mockAccessory.getService.mockImplementation((type: string) => type === MockService.MotionSensor ? motionService : undefined);
-
-      const mockDevice = {
-        accessory: mockAccessory,
-        hints: { logMotion: false, motionDuration: 10 },
-        id: 'test-device-id',
-        log: { debug: vi.fn(), info: vi.fn() },
-      };
-
-      events.motionEventHandler(mockDevice as any);
-
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should not trigger motion delivery when MotionSensor service does not exist', () => {
-
-      const mockAccessory = createMockAccessory('acc-uuid');
-
-      mockAccessory.getService.mockReturnValue(undefined);
-
-      const mockDevice = {
-        accessory: mockAccessory,
-        hints: { logMotion: false, motionDuration: 10 },
-        id: 'test-device-id',
-        log: { debug: vi.fn(), info: vi.fn() },
-      };
-
-      // Should not throw.
-      expect(() => events.motionEventHandler(mockDevice as any)).not.toThrow();
-    });
-  });
-
-  describe('Motion event lifecycle', () => {
-
-    let mockDevice: any;
-    let motionService: ReturnType<typeof createMockService>;
-
-    beforeEach(() => {
-
-      vi.useFakeTimers();
-
-      motionService = createMockService(MockService.MotionSensor);
-
-      const mockAccessory = createMockAccessory('acc-uuid');
-
-      mockAccessory.getService.mockImplementation((type: string) => type === MockService.MotionSensor ? motionService : undefined);
-      mockAccessory.getServiceById.mockReturnValue(undefined);
-      mockAccessory.context = {};
-
-      mockDevice = {
-        accessory: mockAccessory,
-        hints: { logMotion: false, motionDuration: 10 },
-        id: 'test-device-id',
-        log: { debug: vi.fn(), info: vi.fn() },
-      };
-    });
-
-    afterEach(() => {
-
-      vi.useRealTimers();
-    });
-
-    it('should set MotionDetected to true when motion is triggered', () => {
-
-      events.motionEventHandler(mockDevice);
-
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should publish motion true to MQTT when mqtt is configured', () => {
-
-      const mqtt = createMockMqtt();
-
-      controller.mqtt = mqtt;
-
-      // Recreate events with the mqtt-enabled controller.
-      events.removeAllListeners();
-      events = new AccessEvents(controller as any);
-
-      events.motionEventHandler(mockDevice);
-
-      expect(mqtt.publish).toHaveBeenCalledWith('test-device-id', 'motion', 'true');
-    });
-
-    it('should log motion when logMotion hint is enabled', () => {
-
-      mockDevice.hints.logMotion = true;
-
-      events.motionEventHandler(mockDevice);
-
-      expect(mockDevice.log.info).toHaveBeenCalledWith('Motion detected.');
-    });
-
-    it('should not log motion when logMotion hint is disabled', () => {
-
-      mockDevice.hints.logMotion = false;
-
-      events.motionEventHandler(mockDevice);
-
-      expect(mockDevice.log.info).not.toHaveBeenCalled();
-    });
-
-    it('should reset MotionDetected to false after motionDuration expires', () => {
-
-      events.motionEventHandler(mockDevice);
-
-      // MotionDetected should be true initially.
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-
-      // Advance time by motionDuration seconds (10 * 1000).
-      vi.advanceTimersByTime(10 * 1000);
-
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, false);
-    });
-
-    it('should publish motion false to MQTT after motionDuration expires', () => {
-
-      const mqtt = createMockMqtt();
-
-      controller.mqtt = mqtt;
-      events.removeAllListeners();
-      events = new AccessEvents(controller as any);
-
-      events.motionEventHandler(mockDevice);
-
-      vi.advanceTimersByTime(10 * 1000);
-
-      expect(mqtt.publish).toHaveBeenCalledWith('test-device-id', 'motion', 'false');
-    });
-
-    it('should not trigger a second motion event while one is already inflight', () => {
-
-      events.motionEventHandler(mockDevice);
-
-      // Reset mock call counts.
-      motionService.updateCharacteristic.mockClear();
-
-      // Try to trigger another motion event.
-      events.motionEventHandler(mockDevice);
-
-      // MotionDetected should not be set again.
-      expect(motionService.updateCharacteristic).not.toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should log a debug message when a motion event is rate-limited', () => {
-
-      events.motionEventHandler(mockDevice);
-
-      mockDevice.log.debug.mockClear();
-
-      // Trigger again while the first is still inflight.
-      events.motionEventHandler(mockDevice);
-
-      expect(mockDevice.log.debug).toHaveBeenCalledWith('Motion event rate-limited: event already in progress.');
-    });
-
-    it('should allow a new motion event after the previous one has expired', () => {
-
-      events.motionEventHandler(mockDevice);
-
-      // Advance past the motion duration.
-      vi.advanceTimersByTime(10 * 1000);
-
-      motionService.updateCharacteristic.mockClear();
-
-      // Trigger a new motion event.
-      events.motionEventHandler(mockDevice);
-
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should skip motion delivery when detectMotion is false in context', () => {
-
-      mockDevice.accessory.context.detectMotion = false;
-
-      events.motionEventHandler(mockDevice);
-
-      expect(motionService.updateCharacteristic).not.toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should deliver motion when detectMotion is true in context', () => {
-
-      mockDevice.accessory.context.detectMotion = true;
-
-      events.motionEventHandler(mockDevice);
-
-      expect(motionService.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.MotionDetected, true);
-    });
-
-    it('should update the motion trigger switch if present', () => {
-
-      const triggerSwitch = createMockService(MockService.Switch, AccessReservedNames.SWITCH_MOTION_TRIGGER);
-
-      mockDevice.accessory.getServiceById.mockImplementation((type: string, subtype: string) =>
-        type === MockService.Switch && subtype === AccessReservedNames.SWITCH_MOTION_TRIGGER ? triggerSwitch : undefined);
-
-      events.motionEventHandler(mockDevice);
-
-      expect(triggerSwitch.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.On, true);
-
-      // After the timer expires, it should be set to false.
-      vi.advanceTimersByTime(10 * 1000);
-
-      expect(triggerSwitch.updateCharacteristic).toHaveBeenCalledWith(MockCharacteristic.On, false);
-    });
-  });
 });

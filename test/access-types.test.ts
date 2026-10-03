@@ -38,8 +38,6 @@ describe('AccessReservedNames enum', () => {
     ['SWITCH_DOORBELL_TRIGGER', 'DoorbellTrigger'],
     ['SWITCH_LOCK_DOOR_SIDE_TRIGGER', 'Switch.Lock.Door.Side.Trigger'],
     ['SWITCH_LOCK_TRIGGER', 'LockTrigger'],
-    ['SWITCH_MOTION_SENSOR', 'MotionSensorSwitch'],
-    ['SWITCH_MOTION_TRIGGER', 'MotionSensorTrigger'],
   ];
 
   it.each(expectedMembers)('should have %s = %s', (key, value) => {

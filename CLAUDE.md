@@ -9,7 +9,7 @@ Homebridge plugin (`@mp-consulting/homebridge-unifi-access`) providing HomeKit s
 - **Language**: TypeScript (strict, ES2022, ESM via NodeNext)
 - **Runtime**: Node.js >= 22, Homebridge >= 1.8.0
 - **Testing**: Vitest with v8 coverage
-- **Linting**: ESLint 9 flat config with typescript-eslint
+- **Linting**: ESLint 10 flat config with typescript-eslint
 - **Dependencies**: None at runtime — the UniFi Access API client (`src/unifi/`) and plugin utilities (`src/lib/`) are implemented in-repo on Node.js built-ins
 
 ## Commands
@@ -50,9 +50,9 @@ test/
 ├── mocks/                      # Homebridge, UniFi Access, controller mocks
 └── fixtures/                   # Test data
 docs/
-├── feature-options.md          # Feature options reference
-├── mqtt.md                     # MQTT configuration
-└── events.md                   # Event types and payloads
+├── FeatureOptions.md           # Feature options reference
+├── MQTT.md                     # MQTT configuration
+└── Events.md                   # Event types and payloads
 homebridge-ui/                  # Custom config UI with discovery wizard
 ```
 

@@ -4,14 +4,12 @@ import {
   ACCESS_CONTROLLER_RETRY_INTERVAL,
   ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL,
   ACCESS_DEVICE_UNLOCK_INTERVAL,
-  ACCESS_MOTION_DURATION,
-  ACCESS_MQTT_RECONNECT_INTERVAL,
   ACCESS_MQTT_TOPIC,
-  ACCESS_OCCUPANCY_DURATION,
   HK_CHARACTERISTIC_REVERT_DELAY_MS,
   PLATFORM_NAME,
   PLUGIN_NAME,
   createPrefixedLogger,
+  isAccessIdentifier,
   isValidAddress,
   normalizeMac,
 } from '../src/settings.js';
@@ -40,9 +38,6 @@ describe('Interval constants', () => {
 
     ACCESS_CONTROLLER_REFRESH_INTERVAL,
     ACCESS_CONTROLLER_RETRY_INTERVAL,
-    ACCESS_MOTION_DURATION,
-    ACCESS_MQTT_RECONNECT_INTERVAL,
-    ACCESS_OCCUPANCY_DURATION,
     HK_CHARACTERISTIC_REVERT_DELAY_MS,
   };
 
@@ -85,21 +80,6 @@ describe('Interval constant values', () => {
   it('should default unlock interval to 0 minutes', () => {
 
     expect(ACCESS_DEVICE_UNLOCK_INTERVAL).toBe(0);
-  });
-
-  it('should default motion duration to 10 seconds', () => {
-
-    expect(ACCESS_MOTION_DURATION).toBe(10);
-  });
-
-  it('should reconnect MQTT every 60 seconds', () => {
-
-    expect(ACCESS_MQTT_RECONNECT_INTERVAL).toBe(60);
-  });
-
-  it('should default occupancy duration to 300 seconds', () => {
-
-    expect(ACCESS_OCCUPANCY_DURATION).toBe(300);
   });
 
   it('should default HomeKit characteristic revert delay to 50 ms', () => {
@@ -166,14 +146,23 @@ describe('createPrefixedLogger', () => {
     expect(mockLog.warn).toHaveBeenCalledWith('Dev: value is 42');
   });
 
+  it('should log names containing format specifiers verbatim', () => {
+
+    const mockLog = createMockLog();
+    const logger = createPrefixedLogger(mockLog as never, vi.fn(), () => 'Door 100%s');
+
+    logger.info('opened %s', 'now');
+    expect(mockLog.info).toHaveBeenCalledWith('Door 100%s: opened now');
+  });
+
   it('should route debug messages through the debug function', () => {
 
     const mockLog = createMockLog();
     const mockDebug = vi.fn();
     const logger = createPrefixedLogger(mockLog as never, mockDebug, () => 'Hub');
 
-    logger.debug('test debug');
-    expect(mockDebug).toHaveBeenCalledWith('Hub: test debug');
+    logger.debug('test debug %s', 42);
+    expect(mockDebug).toHaveBeenCalledWith('%s: test debug %s', 'Hub', 42);
     expect(mockLog.debug).not.toHaveBeenCalled();
   });
 
@@ -203,6 +192,20 @@ describe('createPrefixedLogger', () => {
   });
 });
 
+describe('isAccessIdentifier', () => {
+
+  it.each([
+    [ 'AABBCCDDEEFF', true ],
+    [ 'aabbccddeeff-PORT1', true ],
+    [ '10', false ],
+    [ 'AABBCCDDEEF', false ],
+    [ 'AA:BB:CC:DD:EE:FF', false ],
+  ])('recognizes %s: %s', (segment, expected) => {
+
+    expect(isAccessIdentifier(segment)).toBe(expected);
+  });
+});
+
 describe('isValidAddress', () => {
 
   it('should accept valid private IPv4 addresses', () => {
@@ -224,6 +227,29 @@ describe('isValidAddress', () => {
     expect(isValidAddress('  ')).toBe(false);
     expect(isValidAddress(null as unknown as string)).toBe(false);
     expect(isValidAddress(undefined as unknown as string)).toBe(false);
+  });
+
+  it('should accept addresses with a port', () => {
+
+    expect(isValidAddress('192.168.1.1:8443')).toBe(true);
+    expect(isValidAddress('unifi.local:443')).toBe(true);
+  });
+
+  it('should reject addresses carrying credentials, paths, or fragments', () => {
+
+    expect(isValidAddress('evil.com/x#')).toBe(false);
+    expect(isValidAddress('user:pass@192.168.1.1')).toBe(false);
+    expect(isValidAddress('192.168.1.1/api')).toBe(false);
+    expect(isValidAddress('192.168.1.1:99999')).toBe(false);
+  });
+
+  it('should reject alternative notations of loopback addresses', () => {
+
+    expect(isValidAddress('2130706433')).toBe(false);
+    expect(isValidAddress('0177.0.0.1')).toBe(false);
+    expect(isValidAddress('127.1')).toBe(false);
+    expect(isValidAddress('localhost.')).toBe(false);
+    expect(isValidAddress('foo.localhost')).toBe(false);
   });
 
   it('should reject localhost', () => {

@@ -16,81 +16,76 @@ import type { AccessHub } from './access-hub.js';
 import { hubDoorLockCommand } from './access-hub-api.js';
 import { doorServiceType, hasCapability, hubInputState, hubLockState, isClosed, isLocked, isWired, serviceHost } from './access-hub-utils.js';
 
-// Start a 3-phase gate cycle: Opening → Open → Closing. The full gateDirectionDuration is split into equal thirds. DPS "close" confirms the final Closed state.
-function startGateCycle(hub: AccessHub): void {
+// The subtypes of every contact sensor we may expose.
+const CONTACT_SENSOR_SUBTYPES = (Object.keys(AccessReservedNames) as (keyof typeof AccessReservedNames)[]).filter(key => key.startsWith('CONTACT_'))
+  .map(key => AccessReservedNames[key]);
+
+// Start a gate cycle, animating the gate's movement in HomeKit. The full gateDirectionDuration is split into three equal phases: Opening → Open → Closing,
+// with the DPS sensor confirming the final Closed state. For a cycle we've initiated, timers drive all three phases. For an external trigger (physical remote,
+// manual override), we only animate Opening → Open and then let the DPS sensor drive Closing → Closed when the gate physically closes, so that HomeKit reflects
+// the real-world gate position rather than guessing at the closing time.
+function startGateCycle(hub: AccessHub, isExternal = false): void {
 
   hub.clearGatePhaseTimers();
 
-  const phaseDuration = hub.gateDirectionDuration / 3;
+  const phaseDuration = hub.gatePhaseDuration;
 
   hub.gateDirection = 'opening';
   hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
 
-  hub.log.debug('Gate cycle started: Opening → Open (%.0fs) → Closing (%.0fs) → DPS confirms Closed (%.0fs total).',
-    phaseDuration / 1000, (phaseDuration * 2) / 1000, hub.gateDirectionDuration / 1000);
+  if(isExternal) {
+
+    hub.log.debug('External gate cycle started: Opening → Open (%.0fs) → waiting for DPS close.', phaseDuration / 1000);
+  } else {
+
+    hub.log.debug('Gate cycle started: Opening → Open (%.0fs) → Closing (%.0fs) → DPS confirms Closed (%.0fs total).',
+      phaseDuration / 1000, (phaseDuration * 2) / 1000, hub.gateDirectionDuration / 1000);
+  }
 
   const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
 
   // Push initial Opening state.
-  if(gdoService) {
+  gdoService?.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.OPEN);
+  gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPENING);
 
-    gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.OPEN);
-    gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPENING);
-  }
-
-  // Phase 2: transition to Open after 1/3 of the duration.
+  // Phase 2: transition to Open after the first phase. For external cycles, there's no closing phase timer - the hkDpsState setter detects DPS close during the
+  // 'open' phase and transitions to Closing automatically, then the dps:changed handler finalizes to Closed.
   hub.gatePhaseTimers.push(setTimeout(() => {
 
     hub.gateDirection = 'open';
-    hub.log.debug('Gate cycle phase: Open.');
+    hub.log.debug(isExternal ? 'External gate cycle phase: Open — waiting for DPS close.' : 'Gate cycle phase: Open.');
     gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPEN);
   }, phaseDuration));
 
-  // Phase 3: transition to Closing after 2/3 of the duration.
+  if(isExternal) {
+
+    return;
+  }
+
+  // Phase 3: transition to Closing after the second phase.
   hub.gatePhaseTimers.push(setTimeout(() => {
 
-    hub.gateDirection = 'closing';
     hub.log.debug('Gate cycle phase: Closing.');
-
-    if(gdoService) {
-
-      gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
-      gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSING);
-    }
+    beginGateClosing(hub, false);
   }, phaseDuration * 2));
 }
 
-// Start a DPS-driven gate cycle for external triggers (physical remote, manual override). Unlike startGateCycle which uses fixed timers for all
-// three phases, this only animates Opening → Open and then waits for the DPS sensor to drive the Closing → Closed transition when the gate
-// physically closes. This ensures HomeKit accurately reflects the real-world gate position rather than guessing closing timing with a timer.
-function startExternalGateCycle(hub: AccessHub): void {
+// Transition the gate into its closing phase and reflect that in HomeKit. The closing phase lasts one phase duration, during which contradictory DPS events are
+// suppressed as sensor bounce. We cancel any pending phase timers unless we're being called from one.
+export function beginGateClosing(hub: AccessHub, clearTimers = true): void {
 
-  hub.clearGatePhaseTimers();
+  if(clearTimers) {
 
-  const phaseDuration = hub.gateDirectionDuration / 3;
+    hub.clearGatePhaseTimers();
+    hub.gateDirectionUntil = Date.now() + hub.gatePhaseDuration;
+  }
 
-  hub.gateDirection = 'opening';
-  hub.gateDirectionUntil = Date.now() + hub.gateDirectionDuration;
-
-  hub.log.debug('External gate cycle started: Opening → Open (%.0fs) → waiting for DPS close.', phaseDuration / 1000);
+  hub.gateDirection = 'closing';
 
   const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
 
-  // Push initial Opening state.
-  if(gdoService) {
-
-    gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.OPEN);
-    gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPENING);
-  }
-
-  // Phase 2: transition to Open after a brief opening animation. No closing phase timer — the hkDpsState setter detects DPS close during the 'open' phase and
-  // transitions to Closing automatically, then the dps:changed handler finalizes to Closed.
-  hub.gatePhaseTimers.push(setTimeout(() => {
-
-    hub.gateDirection = 'open';
-    hub.log.debug('External gate cycle phase: Open — waiting for DPS close.');
-    gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.OPEN);
-  }, phaseDuration));
+  gdoService?.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
+  gdoService?.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSING);
 }
 
 // Configure all HomeKit services on the hub. Called once at device setup.
@@ -142,17 +137,7 @@ export function registerServiceReactions(hub: AccessHub): void {
           } else {
 
             // Gate is open, starting to close.
-            hub.clearGatePhaseTimers();
-            hub.gateDirection = 'closing';
-            hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
-
-            const gdoService = hub.accessory.getService(hub.hap.Service.GarageDoorOpener);
-
-            if(gdoService) {
-
-              gdoService.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
-              gdoService.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSING);
-            }
+            beginGateClosing(hub);
           }
         }
 
@@ -254,7 +239,7 @@ export function registerServiceReactions(hub: AccessHub): void {
 
         // Keep "closing" direction active as a cooldown to suppress DPS bounce after the gate settles. The bounce filter will suppress any
         // DPS "open" events until the cooldown expires. Use one phase duration (1/3 of the full cycle) to cover the settling period.
-        hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
+        hub.gateDirectionUntil = Date.now() + hub.gatePhaseDuration;
 
         service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState, hub.hap.Characteristic.TargetDoorState.CLOSED);
         service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSED);
@@ -268,7 +253,7 @@ export function registerServiceReactions(hub: AccessHub): void {
     if(!isClosed(hub, data.value)) {
 
       hub.log.debug('Gate DPS open detected (no active cycle) — starting external gate cycle.');
-      startExternalGateCycle(hub);
+      startGateCycle(hub, true);
 
       return;
     }
@@ -319,9 +304,7 @@ export function registerServiceReactions(hub: AccessHub): void {
   // React to device online status changes by updating contact sensor StatusActive.
   hub.hubEvents.on('device:online', (data: HubEventMap['device:online']) => {
 
-    for(const sensor of Object.keys(AccessReservedNames).filter(key => key.startsWith('CONTACT_'))) {
-
-      const subtype = AccessReservedNames[sensor as keyof typeof AccessReservedNames];
+    for(const subtype of CONTACT_SENSOR_SUBTYPES) {
 
       serviceHost(hub, subtype).getServiceById(hub.hap.Service.ContactSensor, subtype)?.
         updateCharacteristic(hub.hap.Characteristic.StatusActive, data.isOnline);
@@ -651,7 +634,7 @@ function configureLock(hub: AccessHub): boolean {
   // Configure based on service type.
   if(currentServiceType === 'GarageDoorOpener') {
 
-    configureGarageDoorService(hub, service, false);
+    configureGarageDoorService(hub, service);
   } else {
 
     configureLockService(hub, service, false);
@@ -715,8 +698,8 @@ function configureLockService(hub: AccessHub, service: ReturnType<typeof acquire
   });
 }
 
-// Configure a GarageDoorOpener service.
-function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof acquireService>, isSideDoor: boolean): void {
+// Configure the GarageDoorOpener service for the main door.
+function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof acquireService>): void {
 
   if(!service) {
 
@@ -729,34 +712,43 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
   // Determine the current door state.
   const getDoorState = (): CharacteristicValue => {
 
-    if(isUaGate) {
+    // Non-UA Gate hubs: derive from lock relay state.
+    if(!isUaGate) {
 
-      // Return the current gate cycle phase state.
-      if(!isSideDoor && hub.gateDirection && (Date.now() < hub.gateDirectionUntil)) {
-
-        if(hub.gateDirection === 'opening') {
-
-          return hub.hap.Characteristic.CurrentDoorState.OPENING;
-        }
-
-        if(hub.gateDirection === 'open') {
-
-          return hub.hap.Characteristic.CurrentDoorState.OPEN;
-        }
-
-        return hub.hap.Characteristic.CurrentDoorState.CLOSING;
-      }
-
-      const dpsState = isSideDoor ? hub._hkSideDoorDpsState : hub.hkDpsState;
-
-      return dpsState === hub.hap.Characteristic.ContactSensorState.CONTACT_DETECTED ? hub.hap.Characteristic.CurrentDoorState.CLOSED :
-        hub.hap.Characteristic.CurrentDoorState.OPEN;
+      return isLocked(hub, hub.hkLockState) ? hub.hap.Characteristic.CurrentDoorState.CLOSED : hub.hap.Characteristic.CurrentDoorState.OPEN;
     }
 
-    // Non-UA Gate hubs: derive from lock relay state.
-    const lockState = isSideDoor ? hub.hkSideDoorLockState : hub.hkLockState;
+    // Return the current gate cycle phase state.
+    if(hub.gateDirection && (Date.now() < hub.gateDirectionUntil)) {
 
-    return isLocked(hub, lockState) ? hub.hap.Characteristic.CurrentDoorState.CLOSED : hub.hap.Characteristic.CurrentDoorState.OPEN;
+      switch(hub.gateDirection) {
+
+        case 'opening':
+
+          return hub.hap.Characteristic.CurrentDoorState.OPENING;
+
+        case 'open':
+
+          return hub.hap.Characteristic.CurrentDoorState.OPEN;
+
+        default:
+
+          return hub.hap.Characteristic.CurrentDoorState.CLOSING;
+      }
+    }
+
+    return isClosed(hub, hub.hkDpsState) ? hub.hap.Characteristic.CurrentDoorState.CLOSED : hub.hap.Characteristic.CurrentDoorState.OPEN;
+  };
+
+  // Revert the target state when a command fails.
+  const revertTargetState = (shouldClose: boolean): void => {
+
+    setTimeout(() => {
+
+      service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState,
+        shouldClose ? hub.hap.Characteristic.TargetDoorState.OPEN : hub.hap.Characteristic.TargetDoorState.CLOSED);
+      service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, getDoorState());
+    }, HK_CHARACTERISTIC_REVERT_DELAY_MS);
   };
 
   service.getCharacteristic(hub.hap.Characteristic.CurrentDoorState).onGet(getDoorState);
@@ -765,72 +757,39 @@ function configureGarageDoorService(hub: AccessHub, service: ReturnType<typeof a
 
     const shouldClose = value === hub.hap.Characteristic.TargetDoorState.CLOSED;
 
-    // UA Gate uses a single trigger command that toggles the motorized gate.
-    if(isUaGate) {
+    // Non-UA Gate hubs: use lock/unlock commands directly.
+    if(!isUaGate) {
 
-      // Set a transition cooldown to prevent WebSocket events from immediately reverting the door state.
-      if(isSideDoor) {
+      if(!(await hubDoorLockCommand(hub, shouldClose))) {
 
-        hub.sideDoorGateTransitionUntil = Date.now() + GATE_TRANSITION_COOLDOWN_MS;
-
-        // Immediately show transitional state for side door.
-        service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, shouldClose ? hub.hap.Characteristic.CurrentDoorState.CLOSING :
-          hub.hap.Characteristic.CurrentDoorState.OPENING);
-      } else {
-
-        hub.gateTransitionUntil = Date.now() + GATE_TRANSITION_COOLDOWN_MS;
-
-        // Start the 3-phase gate cycle (Opening → Open → Closing) for opening, or set closing direction directly.
-        if(shouldClose) {
-
-          hub.clearGatePhaseTimers();
-          hub.gateDirection = 'closing';
-          hub.gateDirectionUntil = Date.now() + (hub.gateDirectionDuration / 3);
-          service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, hub.hap.Characteristic.CurrentDoorState.CLOSING);
-        } else {
-
-          startGateCycle(hub);
-        }
+        revertTargetState(shouldClose);
       }
 
-      // Trigger the gate.
-      if(!(await hubDoorLockCommand(hub, false, isSideDoor))) {
-
-        // Clear the transition cooldown and direction on failure.
-        if(isSideDoor) {
-
-          hub.sideDoorGateTransitionUntil = 0;
-        } else {
-
-          hub.gateTransitionUntil = 0;
-          hub.clearGatePhaseTimers();
-          hub.gateDirection = null;
-          hub.gateDirectionUntil = 0;
-        }
-
-        // Revert target state on failure.
-        setTimeout(() => {
-
-          service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState,
-            shouldClose ? hub.hap.Characteristic.TargetDoorState.OPEN : hub.hap.Characteristic.TargetDoorState.CLOSED);
-          service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, getDoorState());
-        }, HK_CHARACTERISTIC_REVERT_DELAY_MS);
-      }
-
-      // The DPS sensor event will update the CurrentDoorState when the gate finishes moving.
       return;
     }
 
-    // Non-UA Gate hubs: use lock/unlock commands directly.
-    if(!(await hubDoorLockCommand(hub, shouldClose, isSideDoor))) {
+    // UA Gate uses a single trigger command that toggles the motorized gate. Set a transition cooldown to prevent WebSocket events from immediately reverting
+    // the door state, and start animating the gate's movement.
+    hub.gateTransitionUntil = Date.now() + GATE_TRANSITION_COOLDOWN_MS;
 
-      // Revert target state on failure.
-      setTimeout(() => {
+    if(shouldClose) {
 
-        service.updateCharacteristic(hub.hap.Characteristic.TargetDoorState,
-          shouldClose ? hub.hap.Characteristic.TargetDoorState.OPEN : hub.hap.Characteristic.TargetDoorState.CLOSED);
-        service.updateCharacteristic(hub.hap.Characteristic.CurrentDoorState, getDoorState());
-      }, HK_CHARACTERISTIC_REVERT_DELAY_MS);
+      beginGateClosing(hub);
+    } else {
+
+      startGateCycle(hub);
+    }
+
+    // Trigger the gate. The DPS sensor event will update the CurrentDoorState when the gate finishes moving.
+    if(!(await hubDoorLockCommand(hub, false))) {
+
+      // Clear the transition cooldown and direction on failure.
+      hub.gateTransitionUntil = 0;
+      hub.clearGatePhaseTimers();
+      hub.gateDirection = null;
+      hub.gateDirectionUntil = 0;
+
+      revertTargetState(shouldClose);
     }
   });
 

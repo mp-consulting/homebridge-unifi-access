@@ -27,9 +27,7 @@ export enum AccessReservedNames {
   SWITCH_ACCESSMETHOD_TOUCHPASS = 'AccessMethod.TouchPass',
   SWITCH_DOORBELL_TRIGGER = 'DoorbellTrigger',
   SWITCH_LOCK_DOOR_SIDE_TRIGGER = 'Switch.Lock.Door.Side.Trigger',
-  SWITCH_LOCK_TRIGGER = 'LockTrigger',
-  SWITCH_MOTION_SENSOR = 'MotionSensorSwitch',
-  SWITCH_MOTION_TRIGGER = 'MotionSensorTrigger'
+  SWITCH_LOCK_TRIGGER = 'LockTrigger'
 }
 
 // UniFi Access event type strings from the Access controller API.

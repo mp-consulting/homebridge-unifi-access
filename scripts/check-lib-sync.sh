@@ -10,7 +10,13 @@
 # Usage: scripts/check-lib-sync.sh [sibling-repo] [branch]
 set -euo pipefail
 
-SIBLING="${1:-mp-consulting/homebridge-unifi-access}"
+# Default to the other half of the pair, so the same script works unmodified in both repositories.
+case "${GITHUB_REPOSITORY:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}" in
+  *homebridge-unifi-access) DEFAULT_SIBLING="mp-consulting/homebridge-unifi-protect" ;;
+  *) DEFAULT_SIBLING="mp-consulting/homebridge-unifi-access" ;;
+esac
+
+SIBLING="${1:-$DEFAULT_SIBLING}"
 BRANCH="${2:-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}}"
 
 # The shared library files that must stay in sync across both repositories.

@@ -22,6 +22,7 @@ export interface AccessControllerOptions {
   address: string;
   mqttTopic: string;
   mqttUrl?: string;
+  mqttVerifyTls?: boolean;
   name?: string;
   username: string;
   password: string;
@@ -66,7 +67,7 @@ export const featureOptions: Record<string, AccessFeatureOption[]> = {
   // Controller options.
   'Controller': [
 
-    { default: true, defaultValue: ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, description: 'Delay, in seconds, before removing devices that are no longer detected on the Access controller. By default, devices are added and removed in realtime.', name: 'DelayDeviceRemoval' },
+    { default: true, defaultValue: ACCESS_DEVICE_REMOVAL_DELAY_INTERVAL, description: 'Delay, in seconds, before removing devices that are no longer detected on the Access controller. Set this to 0 to remove devices as soon as they disappear.', name: 'DelayDeviceRemoval' },
     { default: false, description: 'Publish all the realtime telemetry received from the Access controller to MQTT.', name: 'Publish.Telemetry' },
   ],
 

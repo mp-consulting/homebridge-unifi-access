@@ -1,5 +1,44 @@
 # Changelog
 
+## [Unreleased]
+
+> **Action required for some MQTT users**: TLS certificates of `mqtts://` and `ssl://` brokers are now verified. If your broker uses a self-signed certificate, set `mqttVerifyTls` to `false` for that controller (also available under *Advanced settings* in the plugin's settings UI).
+
+### Security
+
+- **Controller certificates are pinned on first use**: UniFi controllers ship with self-signed certificates, so unless `verifyTls` is enabled the plugin previously accepted any certificate, letting anyone able to intercept the connection collect your controller credentials. The plugin now trusts the certificate it sees the first time it connects, stores its SHA-256 fingerprint in `unifi-access-tls-pins.json` in the Homebridge storage directory, and refuses to connect - before sending any credentials - if a different certificate is presented later. The settings UI shares the same pins. If you regenerate your controller's certificate, remove its entry from that file to trust the new one.
+- **MQTT broker certificates are now verified**: TLS connections to `mqtts://` and `ssl://` brokers previously skipped certificate validation entirely, letting anyone able to intercept the connection read the broker credentials and publish `lock/set` commands. Certificates are now validated by default. Brokers using a self-signed certificate can opt out with the new `mqttVerifyTls` controller setting, and a certificate failure now says so in the log.
+- **Broker credentials are no longer logged**: a malformed broker URL (for example one missing its `mqtt://` scheme) was logged verbatim, password included. Credentials are now redacted in every log message.
+- **The settings UI honors `verifyTls`**: device discovery in the settings UI always connected without validating the controller's certificate, even when `verifyTls` was enabled. It also now always closes its controller session, including on failure.
+- **Stricter controller addresses**: addresses must now be a hostname or IPv4 address with an optional port. Alternative spellings of loopback addresses (`2130706433`, `0177.0.0.1`, `127.1`) and addresses carrying paths or credentials are rejected.
+- **Hardened network parsing**: responses from the controller are capped in size, oversized or fragmented WebSocket control frames are rejected, and large WebSocket and MQTT messages are reassembled in linear rather than quadratic time.
+
+### Fixed
+
+- **`Hub.LockDelayInterval` was ignored**: unlocking from HomeKit with a lock delay configured left the door unlocked indefinitely rather than relocking after the configured number of minutes.
+- **MQTT door control missing on garage door hubs**: `lock/get`, `lock/set`, `dps/get`, and `doorbell/get` were only registered on hubs exposed as a lock, so a UA Gate (or any hub using `Hub.Door.UseGarageOpener`) never responded to them.
+- **Multiple controllers removed each other's separate accessories**: with more than one controller configured, each controller deleted the separate sensor, doorbell, and access method accessories belonging to the others.
+- **Per-door feature options on Enterprise Access Hubs**: on/off feature options scoped to a single UAH-Ent door were never matched.
+- **A second unlock could be relocked early**: unlocking a door again within five seconds of a previous unlock could show it as locked before its own unlock had elapsed.
+- **Events were missed after a dropped connection**: when the realtime events connection dropped or stopped sending heartbeats, the plugin waited for the next two-minute refresh to reconnect. It now reconnects within seconds, with exponential backoff. The periodic refresh also now reconciles each hub's state, so changes missed while disconnected are picked up.
+- **Requests that change state are no longer retried**: logins and unlocks were retried up to five times on server errors, risking repeated unlocks. Retries now apply only to reads, and no longer to non-transient errors such as 400 and 404.
+- **`ringDelay` had no effect**: the doorbell ring delay setting is now honored, suppressing repeated rings within the configured window.
+- **Debug logging**: debug messages were discarded even when Homebridge ran in debug mode.
+- **Invalid controller addresses still connected**: a controller with an invalid address was reported as such, but the plugin went on to connect to it anyway.
+- **Device-scoped value options affected every device**: enabling a value-centric feature option for a single device without giving it a value (e.g. `Enable.Hub.LockDelayInterval.<MAC>`) was also read as a global value equal to that MAC address, enabling the option on every device. It now applies only to that device.
+- **HomeKit names**: name validation and sanitization now match the rules HomeKit enforces, so names ending in punctuation or containing characters such as `#` are cleaned up rather than triggering HAP warnings.
+- **Settings UI**: passwords are no longer trimmed, editing a controller no longer overwrites a custom controller name, and startup or removal failures are reported instead of failing silently.
+- **Clean shutdown**: the plugin now closes its controller connections, MQTT connection, and timers when Homebridge shuts down, and removed hubs release their timers and MQTT subscriptions.
+
+### Changed
+
+- **Settings UI**: the controller setup form now has an advanced section for the controller name, TLS certificate verification, and MQTT settings, which were previously only configurable by editing the raw config.
+- **Reconnection jitter**: MQTT and controller reconnection attempts are now spread out slightly, so multiple clients recovering from the same outage don't retry in lockstep.
+- **Less disk I/O**: the accessory cache is no longer rewritten on every two-minute refresh, only when accessories change.
+- **UA Ultra**: terminal inputs are only reconfigured when the input mode actually changes, rather than on every device update.
+- **Removed dead code**: the never-enabled motion and occupancy sensor code, and its MQTT documentation, have been removed.
+- **Documentation**: corrected the `lock/set` MQTT semantics (`true` locks, `false` unlocks), the supported broker URL schemes, and broken documentation links.
+
 ## [1.2.1] - 2026-10-03
 
 ### Changed

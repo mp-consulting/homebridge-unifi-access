@@ -7,10 +7,13 @@ import {
   UGT_MAIN_DOOR_TARGET_NAME, UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_DOOR_TARGET_NAME, UGT_SIDE_PORT_SOURCE_ID,
 } from '../access-device-catalog.js';
 import { AccessReservedNames } from '../access-types.js';
-import { AUTO_LOCK_DELAY_MS } from './access-hub-types.js';
 import type { AccessHub } from './access-hub.js';
 import { normalizeMac } from '../settings.js';
 import { serviceHost, toDpsState, toLockState } from './access-hub-utils.js';
+
+// Door names that suggest a side (pedestrian) door or a main gate, in English and French. Used to identify doors when the controller doesn't tell us directly.
+const SIDE_DOOR_NAME_PATTERN = /portillon|side|pedestrian|pieton|wicket|back|secondary/i;
+const MAIN_DOOR_NAME_PATTERN = /portail|main|principal|entry|front|gate/i;
 
 // Unified utility function to execute lock and unlock actions on a hub door.
 export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isSideDoor = false): Promise<boolean> {
@@ -65,24 +68,7 @@ export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isS
     // When unlocking from HomeKit, the controller doesn't send the events to the events API. Manually update the state and schedule the auto-lock.
     if(!isLocking) {
 
-      if(isSideDoor) {
-
-        hub.hkSideDoorLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
-      } else {
-
-        hub.hkLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
-      }
-
-      setTimeout(() => {
-
-        if(isSideDoor) {
-
-          hub.hkSideDoorLockState = hub.hap.Characteristic.LockCurrentState.SECURED;
-        } else {
-
-          hub.hkLockState = hub.hap.Characteristic.LockCurrentState.SECURED;
-        }
-      }, AUTO_LOCK_DELAY_MS);
+      hub.scheduleAutoRelock(isSideDoor);
     }
 
     return true;
@@ -92,8 +78,12 @@ export async function hubDoorLockCommand(hub: AccessHub, isLocking: boolean, isS
   // since it's just a visual convenience for the same underlying lock behavior.
   const delayInterval = hub.lockDelayInterval;
 
+  // Translate the configured lock delay into an unlock duration: undefined for the controller's default momentary unlock, 0 to relock, Infinity to remain
+  // unlocked indefinitely, or the configured number of minutes.
+  const duration = (delayInterval === undefined) ? undefined : (isLocking ? 0 : ((delayInterval === 0) ? Infinity : delayInterval));
+
   // Execute the action.
-  if(!(await hub.controller.udaApi.unlock(hub.uda, (delayInterval === undefined) ? undefined : (isLocking ? 0 : Infinity)))) {
+  if(!(await hub.controller.udaApi.unlock(hub.uda, duration))) {
 
     hub.log.error('Unable to %s.', action);
 
@@ -147,7 +137,7 @@ export function discoverDoorNames(hub: AccessHub): void {
     } else {
 
       // Strategy 2: Look for a door named like "side", "portillon", "pedestrian".
-      hub.sideDoorLocationId = candidates.find(door => /portillon|side|pedestrian|pieton|wicket|back|secondary/i.test(door.name))?.unique_id;
+      hub.sideDoorLocationId = candidates.find(door => SIDE_DOOR_NAME_PATTERN.test(door.name))?.unique_id;
     }
   }
 
@@ -167,8 +157,7 @@ export function discoverDoorNames(hub: AccessHub): void {
   } else if(mainCandidates.length > 1) {
 
     // Strategy 3: Look for a door named like "main", "portail", "principal" (excluding side/pedestrian patterns).
-    const mainByRegex = mainCandidates.find(door =>
-      /portail|main|principal|entry|front|gate/i.test(door.name) && !/portillon|side|pedestrian|pieton|wicket|back/i.test(door.name));
+    const mainByRegex = mainCandidates.find(door => MAIN_DOOR_NAME_PATTERN.test(door.name) && !SIDE_DOOR_NAME_PATTERN.test(door.name));
 
     // Strategy 4: Fall back to the device's bound door reference, but only if it's a valid candidate.
     const boundDoor = hub.uda.door?.unique_id;

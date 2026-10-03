@@ -36,6 +36,8 @@ export function createMockPlatform() {
     },
 
     log,
+
+    tlsPins: { filename: '/nonexistent/homebridge/unifi-access-tls-pins.json', get: vi.fn(), set: vi.fn() },
   };
 }
 

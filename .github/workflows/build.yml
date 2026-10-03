@@ -36,7 +36,13 @@ jobs:
         run: npm run build
 
       - name: Test
+        if: matrix.node-version != '24.x'
         run: npm test
+
+      # Run coverage on a single leg of the matrix so the coverage thresholds are enforced without repeating the work on every Node version.
+      - name: Test with coverage
+        if: matrix.node-version == '24.x'
+        run: npm run test:coverage
 
   # The shared dependency-free library (src/lib) is deliberately duplicated between homebridge-unifi-access and homebridge-unifi-protect. Fail if the copies drift.
   lib-sync:
@@ -46,5 +52,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The script defaults its sibling to this repository's own name, so we must name the protect repository explicitly or it compares us against ourselves.
       - name: Compare src/lib against the sibling repository
-        run: ./scripts/check-lib-sync.sh
+        run: ./scripts/check-lib-sync.sh mp-consulting/homebridge-unifi-protect

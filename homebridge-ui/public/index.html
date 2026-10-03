@@ -86,6 +86,48 @@
           </div>
         </div>
 
+        <details class="mb-3" id="advancedSettings">
+          <summary class="mb-2"><i class="bi bi-gear"></i> Advanced settings</summary>
+          <div class="mb-3 row">
+            <label for="inputName" class="col-sm-3 col-form-label">Name</label>
+            <div class="col-sm-9">
+              <input type="text" class="form-control" id="inputName" placeholder="Defaults to the controller's name">
+              <small class="form-text text-muted">Used to identify this controller in the Homebridge log.</small>
+            </div>
+          </div>
+          <div class="mb-3 row">
+            <div class="col-sm-9 offset-sm-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="inputVerifyTls">
+                <label class="form-check-label" for="inputVerifyTls">Verify the controller's TLS certificate against trusted certificate authorities</label>
+              </div>
+              <small class="form-text text-muted">Leave this off unless your controller uses a CA-signed certificate. When off, the controller's self-signed certificate is pinned the first time we connect, and any later change is refused.</small>
+            </div>
+          </div>
+          <div class="mb-3 row">
+            <label for="inputMqttUrl" class="col-sm-3 col-form-label">MQTT broker</label>
+            <div class="col-sm-9">
+              <input type="text" class="form-control" id="inputMqttUrl" placeholder="e.g. mqtt://user:password@1.2.3.4">
+              <small class="form-text text-muted">MQTT support is enabled only when a broker URL is provided.</small>
+            </div>
+          </div>
+          <div class="mb-3 row">
+            <label for="inputMqttTopic" class="col-sm-3 col-form-label">MQTT topic</label>
+            <div class="col-sm-9">
+              <input type="text" class="form-control" id="inputMqttTopic" placeholder="unifi/access">
+            </div>
+          </div>
+          <div class="mb-3 row">
+            <div class="col-sm-9 offset-sm-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="inputMqttVerifyTls" checked>
+                <label class="form-check-label" for="inputMqttVerifyTls">Verify the MQTT broker's TLS certificate</label>
+              </div>
+              <small class="form-text text-muted">Only turn this off if your mqtts:// broker uses a self-signed certificate.</small>
+            </div>
+          </div>
+        </details>
+
         <div id="setupError" class="alert alert-danger" style="display: none;">
           <i class="bi bi-exclamation-circle"></i> <span id="setupErrorText"></span>
         </div>

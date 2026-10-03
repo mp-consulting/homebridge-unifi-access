@@ -184,6 +184,18 @@ describe('WebSocketClient', () => {
     expect(lastRequestHeaders.upgrade).toBe('websocket');
   });
 
+  it('connects through a supplied agent', async () => {
+
+    const agent = new http.Agent();
+    const createConnection = vi.spyOn(agent, 'createConnection');
+    const ws = await connect({ agent });
+
+    expect(ws.readyState).toBe(WebSocketClient.OPEN);
+    expect(createConnection).toHaveBeenCalled();
+
+    agent.destroy();
+  });
+
   it('rejects a handshake with an invalid accept key', async () => {
 
     corruptAccept = true;
@@ -378,10 +390,64 @@ describe('WebSocketClient', () => {
 
     expect(ws.readyState).toBe(WebSocketClient.CLOSED);
 
-    // The client must have echoed the close frame back to the server.
-    const clientClose = decodeClientFrames(serverInbound).find(frame => frame.opcode === 0x8);
+    // The client must have echoed the close frame back to the server. The client can observe its socket closing before the server has read the echo, so we
+    // wait for it to arrive rather than racing it.
+    await vi.waitFor(() => {
 
-    expect(clientClose?.payload.readUInt16BE(0)).toBe(1000);
+      const clientClose = decodeClientFrames(serverInbound).find(frame => frame.opcode === 0x8);
+
+      expect(clientClose?.payload.readUInt16BE(0)).toBe(1000);
+    });
+  });
+
+  it('reassembles frames that arrive split across many chunks, including split headers', async () => {
+
+    const messages: (string | Buffer)[] = [];
+    const large = Buffer.alloc(200 * 1024, 5);
+    const stream = Buffer.concat([ encodeFrame(0x2, large), encodeFrame(0x1, Buffer.from('after')) ]);
+
+    onUpgraded = (socket): void => {
+
+      void (async (): Promise<void> => {
+
+        // Dribble the first few bytes out one at a time so the frame header itself is split, then the rest in small slices.
+        for(let offset = 0; offset < stream.length; offset += (offset < 12) ? 1 : 1024) {
+
+          socket.write(stream.subarray(offset, offset + ((offset < 12) ? 1 : 1024)));
+          await new Promise(resolve => setImmediate(resolve));
+        }
+      })();
+    };
+
+    const ws = new WebSocketClient(url);
+
+    clients.push(ws);
+    ws.on('message', (message: string | Buffer) => messages.push(message));
+
+    await vi.waitFor(() => expect(messages.length).toBe(2), { timeout: 5000 });
+
+    expect(messages[0]).toEqual(large);
+    expect(messages[1]).toBe('after');
+  });
+
+  it.each([
+    [ 'oversized', encodeFrame(0x9, Buffer.alloc(126)) ],
+    [ 'fragmented', encodeFrame(0x9, Buffer.from('ping'), false) ],
+  ])('fails the connection on a %s control frame', async (_label, frame) => {
+
+    onUpgraded = (socket): void => {
+
+      socket.write(frame);
+    };
+
+    const ws = new WebSocketClient(url);
+
+    clients.push(ws);
+
+    const [ error ] = await once(ws, 'error') as [ Error ];
+
+    expect(error.message).toContain('invalid control frame');
+    expect(ws.readyState).toBe(WebSocketClient.CLOSED);
   });
 
   it('enforces the maximum payload cap', async () => {

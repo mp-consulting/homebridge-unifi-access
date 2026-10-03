@@ -25,7 +25,6 @@ Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecos
   * Lock events, including triggering locks via MQTT.
   * Door position sensor (DPS) events.
   * Terminal input events (REL, REN, REX).
-  * Motion detection events, including triggering motion via MQTT.
   * Side door events for UA Gate devices.
   * Raw telemetry publishing.
 
@@ -39,8 +38,9 @@ You configure MQTT settings within a `controller` configuration block. The setti
 |-----------------------|----------------------------------
 | `mqttUrl`             | The URL of your MQTT broker. **This must be in URL form**, e.g.: `mqtt://user:password@1.2.3.4`.
 | `mqttTopic`           | The base topic to publish to. The default is: `unifi/access`.
+| `mqttVerifyTls`       | Validate the broker's TLS certificate when connecting over `mqtts://` or `ssl://`. The default is `true`. Set this to `false` only if your broker uses a self-signed certificate.
 
-To reemphasize the above: **mqttUrl** must be a valid URL. Simply entering in a hostname without specifying it in URL form will result in an error. The URL can use any of these protocols: `mqtt`, `mqtts`, `tcp`, `tls`, `ws`, `wss`.
+To reemphasize the above: **mqttUrl** must be a valid URL. Simply entering in a hostname without specifying it in URL form will result in an error. The URL can use any of these protocols: `mqtt`, `mqtts`, `tcp`, `ssl`. MQTT over WebSockets (`ws`, `wss`) is not supported.
 
 When events are published, by default, the topics look like:
 
@@ -61,7 +61,7 @@ The topics and messages that `@mp-consulting/homebridge-unifi-access` publishes 
 |-----------------------|----------------------------------|----------------------------------
 | `doorbell`            | `true` when ringing, `false` when ring ends. | Hubs with doorbells.
 | `dps`                 | `true` when open, `false` when closed, `unknown` if not wired. | UA Ultra, UA Hub, UA Hub Door Mini, UA Gate.
-| `lock`                | `true` when locked, `false` when unlocked. | All hubs.
+| `lock`                | `true` when locked, `false` when unlocked. | All hubs, whether the door is exposed as a lock or a garage door opener.
 | `rel`                 | `true` when open, `false` when closed. | UA Hub (remote release sensor).
 | `ren`                 | `true` when open, `false` when closed. | UA Hub (request to enter sensor).
 | `rex`                 | `true` when open, `false` when closed. | UA Ultra, UA Hub, UA Hub Door Mini (request to exit sensor).
@@ -73,11 +73,10 @@ The topics and messages that `@mp-consulting/homebridge-unifi-access` publishes 
 | `sidedoor/dps`        | `true` when open, `false` when closed, `unknown` if not wired. | Side door (pedestrian gate) position sensor.
 | `sidedoor/lock`       | `true` when locked, `false` when unlocked. | Side door (pedestrian gate) lock state.
 
-#### Motion and Telemetry Topics
+#### Telemetry Topics
 
 | Topic                 | Message Published                | Description
 |-----------------------|----------------------------------|----------------------------------
-| `motion`              | `true` when motion detected, `false` when motion ends. | Motion detection events.
 | `telemetry`           | JSON payload of raw event data. | Published when `Controller.Publish.Telemetry` is enabled.
 
 Messages are published to MQTT when an action occurs on an Access device that triggers the respective event, or when an MQTT message is received for one of the topics `@mp-consulting/homebridge-unifi-access` subscribes to.
@@ -90,10 +89,10 @@ The topics that `@mp-consulting/homebridge-unifi-access` subscribes to are:
 
 | Topic                   | Message Expected                 | Description
 |-------------------------|----------------------------------|----------------------------------
-| `doorbell/get`          | `true` | Triggers a publish of the current doorbell ring status.
-| `dps/get`               | `true` | Triggers a publish of the current door position sensor state.
-| `lock/get`              | `true` | Triggers a publish of the current lock state.
-| `lock/set`              | `true` to unlock momentarily (auto-relocks based on configured delay), `false` to unlock indefinitely. | Controls the door lock relay.
+| `doorbell/get`          | `true` | Triggers a publish of the current doorbell ring status. Available on devices with a doorbell.
+| `dps/get`               | `true` | Triggers a publish of the current door position sensor state. Available on all hubs.
+| `lock/get`              | `true` | Triggers a publish of the current lock state. Available on all hubs.
+| `lock/set`              | `true` to lock, `false` to unlock. | Controls the door lock relay. Unlocking honors the `Hub.LockDelayInterval` feature option. Locking requires `Hub.LockDelayInterval` to be set, except on UA Gate. Available on all hubs.
 
 #### Side Door Topics (UA Gate Only)
 
@@ -103,14 +102,9 @@ The topics that `@mp-consulting/homebridge-unifi-access` subscribes to are:
 | `sidedoor/lock/get`     | `true` | Triggers a publish of the current side door lock state.
 | `sidedoor/lock/set`     | `true` to lock, `false` to unlock. | Controls the side door lock relay.
 
-#### Motion Topics
-
-| Topic                   | Message Expected                 | Description
-|-------------------------|----------------------------------|----------------------------------
-| `motion/trigger`        | `true` | Triggers a motion event on the device.
-
 ### Some Fun Facts
   * MQTT support is disabled by default. It's enabled when an MQTT broker is specified in the configuration.
   * MQTT is configured per-controller. This allows you to have different MQTT brokers for different Access controllers, if needed.
   * If connectivity to the broker is lost, it will perpetually retry to connect in one-minute intervals.
   * If a bad URL is provided, MQTT support will not be enabled.
+  * Credentials embedded in the broker URL are redacted whenever the URL is logged.

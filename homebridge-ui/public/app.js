@@ -158,4 +158,5 @@ const init = async () => {
   }
 };
 
-init();
+// Surface any startup failure rather than leaving the user with a blank screen.
+init().catch((error) => homebridge.toast.error('Unable to load the plugin settings: ' + (error?.message ?? error)));

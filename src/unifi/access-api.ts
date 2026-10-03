@@ -7,10 +7,11 @@ import type { AccessBootstrapConfig, AccessControllerConfig, AccessDeviceConfig,
 import type { HomebridgePluginLogging, Nullable } from '../lib/util.js';
 import type { RequestResponse } from '../lib/request.js';
 import { request } from '../lib/request.js';
+import { type AccessTlsPinOptions, AccessTlsPin, createAccessAgent } from './access-api-tls.js';
 import { WebSocketClient } from '../lib/websocket.js';
 import { EventEmitter } from 'node:events';
 import { STATUS_CODES } from 'node:http';
-import https from 'node:https';
+import type https from 'node:https';
 import util from 'node:util';
 
 // Number of API errors to accept before we backoff so we don't slam an Access controller.
@@ -21,6 +22,20 @@ const ACCESS_API_RETRY_INTERVAL = 300;
 
 // Access API response timeout, in milliseconds. This should never be greater than 5000 ms.
 const ACCESS_API_TIMEOUT = 3500;
+
+// How long, in milliseconds, we wait for a heartbeat from the events API before we consider the connection dead. Access sends one every five seconds.
+const ACCESS_EVENTS_HEARTBEAT_TIMEOUT = 10 * 1000;
+
+// Cap on the size of a single events API message, in bytes. Events are modest JSON documents - this is far above anything Access sends, while keeping a broken
+// or hostile endpoint from making us buffer arbitrarily large frames.
+const ACCESS_EVENTS_MAX_PAYLOAD = 4 * 1024 * 1024;
+
+// Bounds, in milliseconds, for the exponential backoff we use when reconnecting to the events API after losing the connection.
+const ACCESS_EVENTS_RECONNECT_MIN = 1000;
+const ACCESS_EVENTS_RECONNECT_MAX = 60 * 1000;
+
+// HTTP status codes that indicate a transient condition worth retrying. Client errors such as 400 and 404 won't resolve themselves, so we don't retry those.
+const ACCESS_API_RETRY_STATUS_CODES = [ 429, 500, 502, 503, 504 ];
 
 // Options to tailor an individual request to the Access controller.
 export interface RequestOptions {
@@ -37,8 +52,9 @@ export interface RetrieveOptions {
   timeout?: number;
 }
 
-// Options to tailor the behavior of the Access API client.
-export interface AccessApiOptions {
+// Options to tailor the behavior of the Access API client. When strict TLS validation is off - the default, since UniFi controllers ship with self-signed
+// certificates - the controller's certificate is pinned on first use instead, as described by AccessTlsPinOptions.
+export interface AccessApiOptions extends AccessTlsPinOptions {
 
   verifyTls?: boolean;
 }
@@ -68,10 +84,15 @@ export class AccessApi extends EventEmitter {
   private apiErrorCount: number;
   private apiLastSuccess: number;
   private events: Nullable<WebSocketClient>;
+  private eventsAgent: Nullable<https.Agent>;
+  private eventsReconnectAttempts: number;
+  private eventsReconnectTimer: Nullable<NodeJS.Timeout>;
   private eventsTimer: Nullable<NodeJS.Timeout>;
+  private isClosed: boolean;
   private headers: Record<string, string>;
   private log: HomebridgePluginLogging;
   private password: string;
+  private readonly pin: AccessTlsPin;
   private username: string;
   private verifyTls: boolean;
 
@@ -104,15 +125,22 @@ export class AccessApi extends EventEmitter {
     this._isThrottled = false;
     this.agent = null;
     this.events = null;
+    this.eventsAgent = null;
+    this.eventsReconnectAttempts = 0;
+    this.eventsReconnectTimer = null;
     this.eventsTimer = null;
+    this.isClosed = false;
 
     this.log = {
 
-      debug: (message: string, ...parameters: unknown[]) => log.debug(this.name + ': ' + message, ...parameters),
-      error: (message: string, ...parameters: unknown[]) => log.error(this.name + ': API error: ' + message, ...parameters),
-      info: (message: string, ...parameters: unknown[]) => log.info(this.name + ': ' + message, ...parameters),
-      warn: (message: string, ...parameters: unknown[]) => log.warn(this.name + ': ' + message, ...parameters),
+      debug: (message: string, ...parameters: unknown[]) => log.debug('%s: ' + message, this.name, ...parameters),
+      error: (message: string, ...parameters: unknown[]) => log.error('%s: API error: ' + message, this.name, ...parameters),
+      info: (message: string, ...parameters: unknown[]) => log.info('%s: ' + message, this.name, ...parameters),
+      warn: (message: string, ...parameters: unknown[]) => log.warn('%s: ' + message, this.name, ...parameters),
     };
+
+    // When strict validation is off, we pin the controller's certificate on first use and refuse connections that present a different certificate thereafter.
+    this.pin = new AccessTlsPin(this.log, options);
 
     this.apiErrorCount = 0;
     this.apiLastSuccess = 0;
@@ -128,6 +156,7 @@ export class AccessApi extends EventEmitter {
     this.address = address;
     this.username = username;
     this.password = password;
+    this.isClosed = false;
 
     this.logout();
 
@@ -323,6 +352,9 @@ export class AccessApi extends EventEmitter {
       return retry ? this.bootstrapController(false) : false;
     }
 
+    // We're connected again, so reset our reconnection backoff.
+    this.eventsReconnectAttempts = 0;
+
     // Notify our users.
     this.emit('bootstrap', this._bootstrap);
 
@@ -348,10 +380,18 @@ export class AccessApi extends EventEmitter {
     try {
 
       const ws = new WebSocketClient('wss://' + this.address + '/proxy/access/api/v2/ws/notification',
-        { headers: { Cookie: this.headers.cookie ?? '' }, rejectUnauthorized: this.verifyTls });
+        { agent: this.getEventsAgent(), headers: { Cookie: this.headers.cookie ?? '' }, maxPayload: ACCESS_EVENTS_MAX_PAYLOAD });
 
-      // Cleanup after ourselves if our websocket closes for some reason.
+      // Cleanup after ourselves if our websocket closes for some reason. If it's still our active connection, we lost it unexpectedly - reconnect rather than
+      // waiting for the next scheduled bootstrap refresh, so we don't miss events in the meantime.
       ws.once('close', () => {
+
+        ws.removeAllListeners();
+
+        if(this.events !== ws) {
+
+          return;
+        }
 
         if(this.eventsTimer) {
 
@@ -360,14 +400,14 @@ export class AccessApi extends EventEmitter {
         }
 
         this.events = null;
-        ws.removeAllListeners();
+        this.scheduleEventsReconnect();
       });
 
       // Handle any websocket errors.
-      ws.once('error', (error: Error) => {
+      ws.on('error', (error: Error) => {
 
         this.log.error('Events API error: %s', error.message);
-        this.log.error(util.inspect(error, { colors: true, depth: null, sorted: true }));
+        this.log.debug(util.inspect(error, { colors: false, depth: null, sorted: true }));
         ws.close();
       });
 
@@ -386,16 +426,7 @@ export class AccessApi extends EventEmitter {
         if(message === '"Hello"\n') {
 
           // Heartbeat.
-          if(this.eventsTimer) {
-
-            clearTimeout(this.eventsTimer);
-          }
-
-          this.eventsTimer = setTimeout(() => {
-
-            this.log.error('Failed to detect heartbeat from the events API. Resetting the connection.');
-            this.reset();
-          }, 1000 * 10);
+          this.armEventsHeartbeat();
 
           return;
         }
@@ -417,17 +448,72 @@ export class AccessApi extends EventEmitter {
       this.events = ws;
 
       // Establish our heartbeat.
-      this.eventsTimer = setTimeout(() => {
-
-        this.log.error('Failed to detect heartbeat from the events API. Resetting the connection.');
-        this.reset();
-      }, 1000 * 10);
+      this.armEventsHeartbeat();
     } catch(error) {
 
       this.log.error('Error connecting to the realtime update events API: %s', error);
+
+      return false;
     }
 
     return true;
+  }
+
+  // The agent for our events API connection. It applies the same certificate policy as our API requests, but doesn't pool connections since the events API is
+  // a single long-lived connection.
+  private getEventsAgent(): https.Agent {
+
+    this.eventsAgent ??= createAccessAgent(this.verifyTls, this.pin, { keepAlive: false });
+
+    return this.eventsAgent;
+  }
+
+  // Arm (or re-arm) the watchdog that detects a silently dead events API connection.
+  private armEventsHeartbeat(): void {
+
+    if(this.eventsTimer) {
+
+      clearTimeout(this.eventsTimer);
+    }
+
+    this.eventsTimer = setTimeout(() => {
+
+      this.log.error('Failed to detect heartbeat from the events API. Resetting the connection.');
+      this.reset();
+      this.scheduleEventsReconnect();
+    }, ACCESS_EVENTS_HEARTBEAT_TIMEOUT);
+  }
+
+  // Schedule a reconnection to the events API using exponential backoff with jitter. Reconnecting re-bootstraps, so that our view of the controller reflects
+  // anything we may have missed while disconnected.
+  private scheduleEventsReconnect(): void {
+
+    // We've been deliberately closed, or we already have a reconnection pending.
+    if(this.isClosed || this.eventsReconnectTimer) {
+
+      return;
+    }
+
+    const backoff = Math.min(ACCESS_EVENTS_RECONNECT_MAX, ACCESS_EVENTS_RECONNECT_MIN * (2 ** this.eventsReconnectAttempts));
+    const delay = Math.round(backoff * (0.8 + (Math.random() * 0.4)));
+
+    this.eventsReconnectAttempts++;
+    this.log.debug('Reconnecting to the events API in %s ms.', delay);
+
+    this.eventsReconnectTimer = setTimeout(() => {
+
+      this.eventsReconnectTimer = null;
+
+      void this.getBootstrap().then(success => {
+
+        if(!success) {
+
+          this.scheduleEventsReconnect();
+        }
+      });
+    }, delay);
+
+    this.eventsReconnectTimer.unref();
   }
 
   // Get our UniFi Access configuration, and attempt to retry the bootstrap if it fails.
@@ -527,7 +613,8 @@ export class AccessApi extends EventEmitter {
       return false;
     }
 
-    if(status.codeS === 'SUCCESS') {
+    // A body of JSON null parses successfully, so we guard against it explicitly.
+    if(status?.codeS === 'SUCCESS') {
 
       return true;
     }
@@ -582,9 +669,29 @@ export class AccessApi extends EventEmitter {
       // Cleanup any prior connection pool.
       this.agent?.destroy();
 
-      // Create a connection pool that explicitly allows self-signed SSL certificates and allows up to five connections at a time.
-      this.agent = new https.Agent({ keepAlive: true, maxSockets: 5, rejectUnauthorized: this.verifyTls });
+      // Create a connection pool that applies our certificate policy - strict validation, or our trust-on-first-use pin - before any request data is sent. We
+      // allow up to five connections at a time.
+      this.agent = createAccessAgent(this.verifyTls, this.pin, { keepAlive: true, maxSockets: 5 });
     }
+  }
+
+  // Permanently close our connection to the Access controller. Unlike logout, this also stops any automatic reconnection to the events API until we login
+  // again.
+  public close(): void {
+
+    this.isClosed = true;
+
+    if(this.eventsReconnectTimer) {
+
+      clearTimeout(this.eventsReconnectTimer);
+      this.eventsReconnectTimer = null;
+    }
+
+    this.logout();
+    this.agent?.destroy();
+    this.agent = null;
+    this.eventsAgent?.destroy();
+    this.eventsAgent = null;
   }
 
   // Utility to clear out old login credentials or attempts.
@@ -688,7 +795,9 @@ export class AccessApi extends EventEmitter {
         body: options.body,
         headers: { ...this.headers, ...options.headers },
         method: options.method ?? 'GET',
-        retry: { factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: [ 400, 404, 429, 500, 502, 503, 504 ] },
+        // Only retry idempotent requests. Retrying a login or an unlock that the controller may have already acted upon risks repeating it.
+        retry: [ 'GET', 'HEAD' ].includes((options.method ?? 'GET').toUpperCase()) ?
+          { factor: 2, maxRetries: 5, maxTimeout: 1500, minTimeout: 100, statusCodes: ACCESS_API_RETRY_STATUS_CODES } : undefined,
         signal: controller.signal,
       });
 
@@ -790,7 +899,7 @@ export class AccessApi extends EventEmitter {
         return null;
       }
 
-      logError('Unknown error: %s', util.inspect(error, { colors: true, depth: null, sorted: true }));
+      logError('Unknown error: %s', util.inspect(error, { colors: false, depth: null, sorted: true }));
 
       return null;
     } finally {
@@ -929,6 +1038,12 @@ export class AccessApi extends EventEmitter {
   public get floors(): Nullable<AccessFloorConfig[]> {
 
     return this._floors;
+  }
+
+  // The SHA-256 fingerprint of the controller certificate we've pinned, if any. Always undefined when strict validation is enabled.
+  public get tlsFingerprint(): string | undefined {
+
+    return this.verifyTls ? undefined : this.pin.fingerprint;
   }
 
   // Return whether our connection to the Access controller is currently throttled or not.

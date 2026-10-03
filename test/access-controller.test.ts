@@ -227,6 +227,66 @@ describe('AccessController', () => {
     });
   });
 
+  describe('hasFeature for multi-door devices', () => {
+
+    it('should scope feature options to the individual door of an Enterprise Access Hub', () => {
+
+      const controller = new AccessController(platform as any, createControllerOptions() as any);
+
+      controller.uda = { host: { mac: '00:11:22:33:44:55' } } as any;
+      controller.hasFeature('Hub.DPS', { device_type: 'UAH-Ent', mac: 'AA:BB:CC:DD:EE:FF', source_id: 'port2' } as any);
+
+      expect(platform.featureOptions.test).toHaveBeenCalledWith('Hub.DPS', 'AABBCCDDEEFF-PORT2', '001122334455');
+    });
+  });
+
+  describe('login', () => {
+
+    it('should not attempt to connect when the controller address is invalid', async () => {
+
+      const controller = new AccessController(platform as any, createControllerOptions({ address: '127.0.0.1' }) as any);
+
+      await controller.login();
+
+      expect(platform.log.error).toHaveBeenCalledWith(expect.stringContaining('Invalid controller address'));
+      expect(controller.udaApi).toBeUndefined();
+    });
+  });
+
+  describe('shutdown', () => {
+
+    it('should close the API connection, MQTT, and the refresh timer', () => {
+
+      vi.useFakeTimers();
+
+      const controller = new AccessController(platform as any, createControllerOptions() as any);
+      const refresh = vi.fn();
+      const udaApi = { close: vi.fn() };
+      const mqtt = { end: vi.fn() };
+
+      (controller as any).udaApi = udaApi;
+      controller.mqtt = mqtt as any;
+      (controller as any).bootstrapRefreshTimer = setTimeout(refresh, 1000);
+
+      controller.shutdown();
+      vi.advanceTimersByTime(1000);
+
+      expect(udaApi.close).toHaveBeenCalled();
+      expect(mqtt.end).toHaveBeenCalled();
+      expect(controller.mqtt).toBeNull();
+      expect(refresh).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('should tolerate shutting down before ever connecting', () => {
+
+      const controller = new AccessController(platform as any, createControllerOptions() as any);
+
+      expect(() => controller.shutdown()).not.toThrow();
+    });
+  });
+
   describe('getFeatureNumber', () => {
 
     it('should delegate to featureOptions.getInteger with the controller ID', () => {
@@ -509,6 +569,22 @@ describe('AccessController', () => {
       (controller as any).cleanupDevices();
 
       expect(platform.accessories).toContain(child);
+    });
+
+    it('should leave child accessories belonging to another controller alone', () => {
+
+      const child = controller.acquireChildAccessory(device as any, 'ContactSensor.DPS', 'Front Door Position Sensor');
+
+      // A second controller sharing the platform's accessory list knows nothing about this child's parent.
+      const other = new AccessController(platform as any, createControllerOptions({ address: '192.168.1.2' }) as any);
+
+      other.uda = { host: { mac: '66:77:88:99:AA:BB' } } as any;
+      (other as any).udaApi = { devices: [], getDeviceName: vi.fn(), getFullName: vi.fn() };
+
+      (other as any).cleanupDevices();
+
+      expect(platform.accessories).toContain(child);
+      expect(platform.api.unregisterPlatformAccessories).not.toHaveBeenCalled();
     });
 
     it('should clean up orphaned child accessories whose parent is gone', () => {

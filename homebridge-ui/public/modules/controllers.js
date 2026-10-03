@@ -60,9 +60,17 @@ export const renderControllers = () => {
 
 
       setButtonLoading(this, true, '...');
-      controllers.splice(index, 1);
-      await saveConfig();
-      homebridge.toast.success('Controller removed');
+
+      try {
+
+        controllers.splice(index, 1);
+        await saveConfig();
+        homebridge.toast.success('Controller removed');
+      } catch(e) {
+
+        homebridge.toast.error('Unable to remove the controller: ' + e.message);
+      }
+
       renderControllers();
     });
 
@@ -91,6 +99,45 @@ export const renderControllers = () => {
   });
 };
 
+// Populate the advanced settings section of the setup form, expanding it when any of the settings differ from their defaults.
+const fillAdvancedSettings = (ctrl) => {
+
+  $('inputName').value = ctrl.name || '';
+  $('inputVerifyTls').checked = ctrl.verifyTls === true;
+  $('inputMqttUrl').value = ctrl.mqttUrl || '';
+  $('inputMqttTopic').value = ctrl.mqttTopic || '';
+  $('inputMqttVerifyTls').checked = ctrl.mqttVerifyTls !== false;
+  $('advancedSettings').open = !!(ctrl.name || ctrl.verifyTls || ctrl.mqttUrl || ctrl.mqttTopic || (ctrl.mqttVerifyTls === false));
+};
+
+// Apply the advanced settings from the setup form to a controller configuration, leaving out anything at its default so the config stays tidy.
+const applyAdvancedSettings = (controllerData, hostname) => {
+
+  const settings = {
+
+    mqttTopic: $('inputMqttTopic').value.trim(),
+    mqttUrl: $('inputMqttUrl').value.trim(),
+    mqttVerifyTls: $('inputMqttVerifyTls').checked ? undefined : false,
+
+    // Default the name to the controller's hostname when the user hasn't chosen one.
+    name: $('inputName').value.trim() || hostname,
+    verifyTls: $('inputVerifyTls').checked ? true : undefined,
+  };
+
+  for(const [ key, value ] of Object.entries(settings)) {
+
+    if((value === undefined) || (value === '')) {
+
+      delete controllerData[key];
+    } else {
+
+      controllerData[key] = value;
+    }
+  }
+
+  return controllerData;
+};
+
 export const openAddController = (prefillAddress) => {
 
 
@@ -100,6 +147,7 @@ export const openAddController = (prefillAddress) => {
   $('inputAddress').value = prefillAddress || '';
   $('inputUsername').value = '';
   $('inputPassword').value = '';
+  fillAdvancedSettings({});
   $('setupError').style.display = 'none';
   $('cancelSetupBtn').style.display = getControllers().length ? 'inline-block' : 'none';
   showScreen('setupScreen');
@@ -122,6 +170,7 @@ export const openEditController = (index) => {
   $('inputAddress').value = ctrl.address || '';
   $('inputUsername').value = ctrl.username || '';
   $('inputPassword').value = ctrl.password || '';
+  fillAdvancedSettings(ctrl);
   $('setupError').style.display = 'none';
   $('cancelSetupBtn').style.display = 'inline-block';
   showScreen('setupScreen');
@@ -135,7 +184,8 @@ export const handleSetupSubmit = async (event) => {
 
   const address = $('inputAddress').value.trim();
   const username = $('inputUsername').value.trim();
-  const password = $('inputPassword').value.trim();
+  // Passwords may legitimately begin or end with whitespace, so we take them verbatim.
+  const password = $('inputPassword').value;
 
   if(!address || !username || !password) {
 
@@ -154,7 +204,7 @@ export const handleSetupSubmit = async (event) => {
   try {
 
 
-    const devices = await homebridge.request('/getDevices', { address, password, username });
+    const devices = await homebridge.request('/getDevices', { address, password, username, verifyTls: $('inputVerifyTls').checked });
 
     if(!devices?.length) {
 
@@ -170,20 +220,12 @@ export const handleSetupSubmit = async (event) => {
 
     state.pluginConfig[0].controllers ||= [];
 
-    const controllerData = { address, password, username };
-
-    if(devices[0]?.host?.hostname) {
-
-
-      controllerData.name = devices[0].host.hostname;
-    }
+    const existing = (state.editingIndex !== null) ? state.pluginConfig[0].controllers[state.editingIndex] : {};
+    const controllerData = applyAdvancedSettings({ ...existing, address, password, username }, devices[0]?.host?.hostname);
 
     if(state.editingIndex !== null) {
 
-
-      const existing = state.pluginConfig[0].controllers[state.editingIndex];
-
-      state.pluginConfig[0].controllers[state.editingIndex] = { ...existing, ...controllerData };
+      state.pluginConfig[0].controllers[state.editingIndex] = controllerData;
     } else {
 
 

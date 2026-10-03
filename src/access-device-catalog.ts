@@ -239,6 +239,13 @@ export function getDeviceCatalog(deviceType: string): DeviceCatalogEntry | undef
   return deviceCatalog[deviceType];
 }
 
+// Return the identifier we use for a device in feature options and MQTT topics. Devices that expose multiple doors (e.g. UAH-Ent) get one identity per door,
+// so we append the port they're bound to.
+export function deviceIdentifier(device: { device_type: string; mac: string; source_id?: string }): string {
+
+  return device.mac.replace(/:/g, '') + ((getDeviceCatalog(device.device_type)?.appendsSourceId && device.source_id) ? '-' + device.source_id.toUpperCase() : '');
+}
+
 // Look up sensor configuration for a specific device and sensor input.
 export function getSensorConfig(deviceType: string, sensor: SensorInput): SensorConfig | undefined {
 

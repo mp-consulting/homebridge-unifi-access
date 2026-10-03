@@ -59,6 +59,12 @@ describe('request', () => {
 
           break;
 
+        case '/large':
+
+          res.end(Buffer.alloc(4096, 1));
+
+          break;
+
         case '/slow':
 
           // Deliberately never respond so abort handling can be exercised.
@@ -128,6 +134,15 @@ describe('request', () => {
 
     expect(response.statusCode).toBe(503);
     expect(flakyCount).toBe(1);
+  });
+
+  it('rejects responses that exceed the maximum response size', async () => {
+
+    await expect(request(baseUrl + '/large', { maxResponseSize: 1024 })).rejects.toThrow('maximum allowed size');
+
+    const response = await request(baseUrl + '/large', { maxResponseSize: 4096 });
+
+    expect((await response.body.arrayBuffer()).byteLength).toBe(4096);
   });
 
   it('honors the abort signal', async () => {

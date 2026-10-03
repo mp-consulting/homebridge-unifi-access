@@ -27,7 +27,7 @@ export const openFeatureOptions = async (controllerIndex) => {
 
     const [ optionsData, devices ] = await Promise.all([
       homebridge.request('/getOptions'),
-      homebridge.request('/getDevices', { address: ctrl.address, password: ctrl.password, username: ctrl.username }),
+      homebridge.request('/getDevices', { address: ctrl.address, password: ctrl.password, username: ctrl.username, verifyTls: ctrl.verifyTls }),
     ]);
 
     state.categories = optionsData.categories;
@@ -52,8 +52,7 @@ export const openFeatureOptions = async (controllerIndex) => {
 
 
         device.name ||= device.alias || device.display_model;
-        device.serialNumber = (device.mac || '').replace(/:/g, '').toUpperCase() +
-          ((device.device_type === 'UAH-Ent') ? '-' + (device.source_id || '').toUpperCase() : '');
+        device.serialNumber = (device.featureId ?? (device.mac || '').replace(/:/g, '')).toUpperCase();
 
         if((device.display_model === 'controller') || device.capabilities?.includes('is_hub') || device.capabilities?.includes('is_reader')) {
 

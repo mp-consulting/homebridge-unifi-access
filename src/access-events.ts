@@ -3,13 +3,11 @@
  *
  * access-events.ts: Events class for UniFi Access.
  */
-import type { API, HAP, Service } from 'homebridge';
+import type { HAP } from 'homebridge';
 import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from './unifi/index.js';
-import { AccessEventType, AccessReservedNames } from './access-types.js';
+import { AccessEventType } from './access-types.js';
 import { type HomebridgePluginLogging, sanitizeName } from './lib/index.js';
 import type { AccessController } from './access-controller.js';
-import type { AccessDevice } from './access-device.js';
-import type { AccessPlatform } from './access-platform.js';
 import { EventEmitter } from 'node:events';
 
 // Event map for typed EventEmitter support. All Access events carry an AccessEventPacket payload.
@@ -18,34 +16,24 @@ type AccessEventMap = Record<string, [AccessEventPacket]>;
 
 export class AccessEvents extends EventEmitter<AccessEventMap> {
 
-  private api: API;
   private controller: AccessController;
   private eventsHandler: ((packet: AccessEventPacket) => void) | null;
-  private readonly eventTimers: Record<string, NodeJS.Timeout | undefined>;
   private hap: HAP;
   private log: HomebridgePluginLogging;
   private mqttPublishTelemetry: boolean;
-  private platform: AccessPlatform;
   private udaApi: AccessApi;
-  private udaDeviceState: Record<string, AccessDeviceConfig>;
   private udaUpdatesHandler: ((packet: AccessEventPacket) => void) | null;
-  private unsupportedDevices: Record<string, boolean>;
 
   // Initialize an instance of our Access events handler.
   constructor(controller: AccessController) {
 
     super();
 
-    this.api = controller.platform.api;
-    this.eventTimers = {};
     this.hap = controller.platform.api.hap;
     this.log = controller.log;
     this.mqttPublishTelemetry = controller.hasFeature('Controller.Publish.Telemetry');
     this.controller = controller;
     this.udaApi = controller.udaApi;
-    this.udaDeviceState = {};
-    this.platform = controller.platform;
-    this.unsupportedDevices = {};
     this.eventsHandler = null;
     this.udaUpdatesHandler = null;
 
@@ -79,11 +67,11 @@ export class AccessEvents extends EventEmitter<AccessEventMap> {
 
         accessDevice.log.info('Name change detected. A restart of Homebridge may be needed in order to complete name synchronization with HomeKit.');
         accessDevice.configureInfo();
+
+        // Persist the new names to the accessory cache.
+        this.controller.platform.api.updatePlatformAccessories([ accessDevice.accessory, ...accessDevice.childAccessories ]);
       }
     }
-
-    // Update the internal list we maintain.
-    this.udaDeviceState[packet.event_object_id] = packet.data as AccessDeviceConfig;
   }
 
   // Process device additions and removals from the Access events API.
@@ -160,69 +148,5 @@ export class AccessEvents extends EventEmitter<AccessEventMap> {
       event_object_id: packet.event_object_id,  
       ...(packet.meta ? { meta: { id: packet.meta.id, object_type: packet.meta.object_type } } : {}),  
     });
-  }
-
-  // Motion event processing from UniFi Access.
-  public motionEventHandler(accessDevice: AccessDevice): void {
-
-    // Only notify the user if we have a motion sensor and it's active.
-    const motionService = accessDevice.accessory.getService(this.hap.Service.MotionSensor);
-
-    if(motionService) {
-
-      this.motionEventDelivery(accessDevice, motionService);
-    }
-  }
-
-  // Motion event delivery to HomeKit.
-  private motionEventDelivery(accessDevice: AccessDevice, motionService: Service): void {
-
-    // If we have disabled motion events, we're done here.
-    if(('detectMotion' in accessDevice.accessory.context) && !accessDevice.accessory.context.detectMotion) {
-
-      return;
-    }
-
-    // If we have an active motion event inflight, we're done.
-    if(this.eventTimers[accessDevice.id]) {
-
-      accessDevice.log.debug('Motion event rate-limited: event already in progress.');
-
-      return;
-    }
-
-    // Trigger the motion event in HomeKit.
-    motionService.updateCharacteristic(this.hap.Characteristic.MotionDetected, true);
-
-    // If we have a motion trigger switch configured, update it.
-    accessDevice.accessory.getServiceById(this.hap.Service.Switch, AccessReservedNames.SWITCH_MOTION_TRIGGER)
-      ?.updateCharacteristic(this.hap.Characteristic.On, true);
-
-    // Publish the motion event to MQTT, if the user has configured it.
-    this.controller.mqtt?.publish(accessDevice.id, 'motion', 'true');
-
-    // Log the event, if configured to do so.
-    if(accessDevice.hints.logMotion) {
-
-      accessDevice.log.info('Motion detected.');
-    }
-
-    // Reset our motion event after motionDuration.
-    this.eventTimers[accessDevice.id] = setTimeout(() => {
-
-      motionService.updateCharacteristic(this.hap.Characteristic.MotionDetected, false);
-
-      // If we have a motion trigger switch configured, update it.
-      accessDevice.accessory.getServiceById(this.hap.Service.Switch, AccessReservedNames.SWITCH_MOTION_TRIGGER)
-        ?.updateCharacteristic(this.hap.Characteristic.On, false);
-
-      accessDevice.log.debug('Resetting motion event.');
-
-      // Publish to MQTT, if the user has configured it.
-      this.controller.mqtt?.publish(accessDevice.id, 'motion', 'false');
-
-      // Delete the timer from our motion event tracker.
-      delete this.eventTimers[accessDevice.id];
-    }, accessDevice.hints.motionDuration * 1000);
   }
 }

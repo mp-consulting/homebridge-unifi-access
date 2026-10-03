@@ -194,5 +194,7 @@ export function createMockAPI() {
     registerPlatformAccessories: vi.fn(),
     unregisterPlatformAccessories: vi.fn(),
     updatePlatformAccessories: vi.fn(),
+
+    user: { storagePath: vi.fn(() => '/nonexistent/homebridge') },
   };
 }

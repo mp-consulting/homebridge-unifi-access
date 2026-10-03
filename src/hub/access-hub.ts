@@ -6,16 +6,18 @@
 import { EventEmitter } from 'events';
 import type { AccessDeviceConfig } from '../unifi/index.js';
 import type { CharacteristicValue, PlatformAccessory } from 'homebridge';
-import { type DeviceCatalogEntry, type SensorInput, getDeviceCatalog } from '../access-device-catalog.js';
+import { type DeviceCatalogEntry, type SensorInput, deviceCatalog, getDeviceCatalog } from '../access-device-catalog.js';
 import type { AccessController } from '../access-controller.js';
 import { AccessDevice } from '../access-device.js';
 import { AccessReservedNames } from '../access-types.js';
 import { ACCESS_GATE_DIRECTION_DURATION } from '../settings.js';
-import { type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs } from './access-hub-types.js';
+import {
+  AUTO_LOCK_DELAY_MS, type AccessHubHKProps, type AccessHubWiredProps, type HubEventKey, type HubEventMap, type KeyOf, sensorInputs,
+} from './access-hub-types.js';
 import { discoverDoorNames, initializeDoorsFromApi } from './access-hub-api.js';
 import { registerEventHandlers } from './access-hub-events.js';
-import { configureMqtt } from './access-hub-mqtt.js';
-import { configureServices, registerServiceReactions, updateSideDoorServiceNames } from './access-hub-services.js';
+import { configureMqtt, removeMqtt } from './access-hub-mqtt.js';
+import { beginGateClosing, configureServices, registerServiceReactions, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
   checkUltraInputs, getContactSensorState, hubDpsState, hubLockState, isWired, logLockDelayInterval, serviceHost, setContactSensorState,
 } from './access-hub-utils.js';
@@ -35,13 +37,19 @@ class HubEventBus {
 
   emit<K extends HubEventKey>(event: K, data: HubEventMap[K]): void {
 
-    this.logger?.('Event bus: %s %s.', event, JSON.stringify(data));
+    // Serialize lazily - util.format only stringifies the payload when the message is actually logged.
+    this.logger?.('Event bus: %s %j.', event, data);
     this.emitter.emit(event, data);
   }
 
   on<K extends HubEventKey>(event: K, handler: (data: HubEventMap[K]) => void): void {
 
     this.emitter.on(event, handler as (...args: unknown[]) => void);
+  }
+
+  removeAllListeners(): void {
+
+    this.emitter.removeAllListeners();
   }
 
   setLogger(logger: (message: string, ...params: unknown[]) => void): void {
@@ -67,13 +75,16 @@ export class AccessHub extends AccessDevice {
   public gateDirectionUntil: number;
   public gatePhaseTimers: ReturnType<typeof setTimeout>[];
   public gateTransitionUntil: number;
+  public lastDoorbellRing: number;
   public lockDelayInterval: number | undefined;
   public mainDoorLocationId: string | undefined;
   public mainDoorName: string | undefined;
   public sideDoorLocationId: string | undefined;
   public sideDoorName: string | undefined;
-  public sideDoorGateTransitionUntil: number;
   public uda: AccessDeviceConfig;
+
+  // Pending auto-relock timers, one per door, so that a fresh unlock restarts the countdown rather than being relocked early by an earlier unlock.
+  private readonly autoRelockTimers: { main?: ReturnType<typeof setTimeout>; side?: ReturnType<typeof setTimeout> } = {};
 
   // Services we've split out onto their own HomeKit accessories, keyed by the group they belong to.
   public readonly serviceAccessories: Record<string, PlatformAccessory | undefined> = {};
@@ -88,8 +99,8 @@ export class AccessHub extends AccessDevice {
 
     this.hubEvents.setLogger(this.log.debug.bind(this.log));
 
-     
-    this.catalog = getDeviceCatalog(device.device_type) ?? getDeviceCatalog('UAH')!;
+    // Unknown hub models get the capabilities of a standard UniFi Access hub.
+    this.catalog = getDeviceCatalog(device.device_type) ?? deviceCatalog.UAH;
     this.uda = device;
     this._hkDpsState = hubDpsState(this);
     this._hkLockState = hubLockState(this);
@@ -100,12 +111,12 @@ export class AccessHub extends AccessDevice {
     this.gateDirectionUntil = 0;
     this.gatePhaseTimers = [];
     this.gateTransitionUntil = 0;
+    this.lastDoorbellRing = 0;
     this.lockDelayInterval = this.getFeatureNumber('Hub.LockDelayInterval') ?? undefined;
     this.mainDoorLocationId = undefined;
     this.mainDoorName = undefined;
     this.sideDoorLocationId = undefined;
     this.sideDoorName = undefined;
-    this.sideDoorGateTransitionUntil = 0;
     this.doorbellRingRequestId = null;
 
     // If we attempt to set the delay interval to something invalid, then assume we are using the default unlock behavior.
@@ -181,6 +192,12 @@ export class AccessHub extends AccessDevice {
     return this.setInfo(this.accessory, this.uda);
   }
 
+  // The duration of a single phase of a gate cycle. A full cycle is split into three equal phases: opening, open, and closing.
+  public get gatePhaseDuration(): number {
+
+    return this.gateDirectionDuration / 3;
+  }
+
   // Clear any scheduled gate phase transition timers.
   public clearGatePhaseTimers(): void {
 
@@ -190,6 +207,50 @@ export class AccessHub extends AccessDevice {
     }
 
     this.gatePhaseTimers = [];
+  }
+
+  // Mark a door as unlocked and schedule it to be reflected as locked again once the controller's momentary unlock has elapsed. We use this where the
+  // controller doesn't tell us when the door relocks.
+  public scheduleAutoRelock(isSideDoor: boolean): void {
+
+    const door = isSideDoor ? 'side' : 'main';
+
+    clearTimeout(this.autoRelockTimers[door]);
+
+    if(isSideDoor) {
+
+      this.hkSideDoorLockState = this.hap.Characteristic.LockCurrentState.UNSECURED;
+    } else {
+
+      this.hkLockState = this.hap.Characteristic.LockCurrentState.UNSECURED;
+    }
+
+    this.autoRelockTimers[door] = setTimeout(() => {
+
+      delete this.autoRelockTimers[door];
+
+      if(isSideDoor) {
+
+        this.hkSideDoorLockState = this.hap.Characteristic.LockCurrentState.SECURED;
+      } else {
+
+        this.hkLockState = this.hap.Characteristic.LockCurrentState.SECURED;
+      }
+    }, AUTO_LOCK_DELAY_MS);
+  }
+
+  // Cleanup our event handlers, timers, and MQTT subscriptions.
+  public override cleanup(): void {
+
+    super.cleanup();
+
+    this.clearGatePhaseTimers();
+    clearTimeout(this.autoRelockTimers.main);
+    clearTimeout(this.autoRelockTimers.side);
+    delete this.autoRelockTimers.main;
+    delete this.autoRelockTimers.side;
+    this.hubEvents.removeAllListeners();
+    removeMqtt(this);
   }
 
   // Initialize and configure the hub accessory for HomeKit. Orchestrates all module setup.
@@ -275,17 +336,7 @@ export class AccessHub extends AccessDevice {
     if(this.catalog.usesLocationApi && isClosed && (this._hkDpsState !== value) && (this.gateDirection === 'open' || (Date.now() >= this.gateDirectionUntil))) {
 
       this.log.debug('Gate closing detected during %s phase — transitioning to Closing.', this.gateDirection ?? 'idle');
-      this.clearGatePhaseTimers();
-      this.gateDirection = 'closing';
-      this.gateDirectionUntil = Date.now() + (this.gateDirectionDuration / 3);
-
-      const gdoService = this.accessory.getService(this.hap.Service.GarageDoorOpener);
-
-      if(gdoService) {
-
-        gdoService.updateCharacteristic(this.hap.Characteristic.TargetDoorState, this.hap.Characteristic.TargetDoorState.CLOSED);
-        gdoService.updateCharacteristic(this.hap.Characteristic.CurrentDoorState, this.hap.Characteristic.CurrentDoorState.CLOSING);
-      }
+      beginGateClosing(this);
     }
 
     this._hkDpsState = value;

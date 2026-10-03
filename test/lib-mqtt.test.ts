@@ -204,6 +204,33 @@ describe('MqttConnection', () => {
     expect(broker.events.filter(event => event.type === 'subscribe').length).toBe(1);
   });
 
+  it('adds up to 20% of jitter to the reconnect period', async () => {
+
+    // Grab a port that nothing is listening on.
+    const probe = net.createServer();
+
+    await new Promise<void>(resolve => probe.listen(0, resolve));
+
+    const port = (probe.address() as AddressInfo).port;
+
+    await new Promise(resolve => probe.close(resolve));
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    const mqtt = new MqttConnection('mqtt://localhost:' + port.toString(), { reconnectPeriod: 1000 });
+
+    mqtt.on('error', () => {});
+    cleanup.push(() => mqtt.end(true));
+
+    // events.once() would reject on the connection error, so we listen for the close directly.
+    await new Promise(resolve => mqtt.once('close', resolve));
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1100);
+
+    vi.restoreAllMocks();
+  });
+
   it('emits a connection-refused error when the broker rejects the connection', async () => {
 
     const broker = await createBroker({ connackCode: 5 });

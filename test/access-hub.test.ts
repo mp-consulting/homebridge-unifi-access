@@ -84,6 +84,8 @@ vi.mock('../src/lib/index.js', () => ({
 }));
 
 import { AccessHub } from '../src/hub/index.js';
+import { acquireService } from '../src/lib/index.js';
+import { hubDoorLockCommand } from '../src/hub/access-hub-api.js';
 
 // Helper: create test accessory with tracked services map.
 function createTestAccessory(uuid = 'test-uuid') {
@@ -173,6 +175,7 @@ function createHubController(overrides: Record<string, unknown> = {}) {
 
     accessories: [] as unknown[],
     api,
+    config: { controllers: [], debugAll: false, options: [], ringDelay: 0 },
     debug: vi.fn(),
 
     featureOptions: {
@@ -1666,6 +1669,253 @@ describe('AccessHub', () => {
 
       expect(controller.events.listenerCount(AccessEventType.DOORBELL_RING)).toBe(0);
       expect(controller.events.listenerCount(AccessEventType.DOORBELL_CANCEL)).toBe(0);
+    });
+  });
+  describe('auto-relock', () => {
+
+    it('restarts the relock countdown when the door is unlocked again', () => {
+
+      const mqtt = createTestMqtt();
+
+      controller.mqtt = mqtt;
+      controller.udaApi.doors = [{ name: 'Main Gate', unique_id: 'door-1' }];
+
+      new AccessHub(controller as any, createUGTConfig(), accessory as any);
+
+      const unlock = (): boolean => controller.events.emit('door-1', { data: {}, event: AccessEventType.DEVICE_REMOTE_UNLOCK, event_object_id: 'door-1' });
+
+      unlock();
+      vi.advanceTimersByTime(AUTO_LOCK_DELAY_MS - 1000);
+      unlock();
+      mqtt.publish.mockClear();
+
+      // The first unlock's countdown would have expired here.
+      vi.advanceTimersByTime(1000);
+      expect(mqtt.publish).not.toHaveBeenCalledWith(expect.any(String), 'lock', 'true');
+
+      vi.advanceTimersByTime(AUTO_LOCK_DELAY_MS - 1000);
+      expect(mqtt.publish).toHaveBeenCalledWith(expect.any(String), 'lock', 'true');
+    });
+
+    it('cancels pending relocks and MQTT subscriptions on cleanup', () => {
+
+      const mqtt = createTestMqtt();
+
+      controller.mqtt = mqtt;
+      controller.udaApi.doors = [{ name: 'Main Gate', unique_id: 'door-1' }];
+
+      const hub = new AccessHub(controller as any, createUGTConfig(), accessory as any);
+
+      controller.events.emit('door-1', { data: {}, event: AccessEventType.DEVICE_REMOTE_UNLOCK, event_object_id: 'door-1' });
+      hub.cleanup();
+      mqtt.publish.mockClear();
+
+      vi.advanceTimersByTime(AUTO_LOCK_DELAY_MS);
+
+      expect(mqtt.publish).not.toHaveBeenCalled();
+      expect(mqtt.unsubscribe).toHaveBeenCalledWith(hub.id, 'lock/set');
+    });
+  });
+
+  describe('lock delay interval', () => {
+
+    it.each([
+      [ 'the controller default', null, false, undefined ],
+      [ 'a delay in minutes', 10, false, 10 ],
+      [ 'an indefinite unlock', 0, false, Infinity ],
+      [ 'a relock', 10, true, 0 ],
+    ])('unlocks with %s', async (_label, delay, isLocking, duration) => {
+
+      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => (option === 'Hub.LockDelayInterval') ? delay : null);
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      expect(await hubDoorLockCommand(hub, isLocking)).toBe(true);
+      expect(controller.udaApi.unlock).toHaveBeenCalledWith(hub.uda, duration);
+    });
+  });
+
+  describe('MQTT door control', () => {
+
+    it('registers door topics on hubs exposed as a garage door opener', () => {
+
+      const mqtt = createTestMqtt();
+
+      controller.mqtt = mqtt;
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+
+      // Every feature option is on in these tests, so this hub's door is a garage door opener.
+      expect(accessory.getService(controller.api.hap.Service.LockMechanism)).toBeUndefined();
+
+      expect(mqtt.subscribeGet.mock.calls.map(call => call[1])).toEqual(expect.arrayContaining([ 'doorbell', 'dps', 'lock' ]));
+      expect(mqtt.subscribeSet).toHaveBeenCalledWith(hub.id, 'lock', 'Lock', expect.any(Function));
+    });
+
+    it('does not register door control topics on readers', () => {
+
+      const mqtt = createTestMqtt();
+
+      controller.mqtt = mqtt;
+
+      new AccessHub(controller as any, createUAHConfig({ capabilities: [ 'is_reader', 'door_bell' ] }), accessory as any);
+
+      expect(mqtt.subscribeGet.mock.calls.map(call => call[1])).toEqual([ 'doorbell' ]);
+      expect(mqtt.subscribeSet).not.toHaveBeenCalled();
+    });
+
+    it('maps lock/set messages to lock commands and rejects unknown values', async () => {
+
+      const mqtt = createTestMqtt();
+
+      controller.mqtt = mqtt;
+
+      const hub = new AccessHub(controller as any, createUAHConfig(), accessory as any);
+      const setLock = mqtt.subscribeSet.mock.calls.find(call => call[1] === 'lock')?.[3] as (value: string) => void;
+
+      setLock('false');
+      await vi.runAllTimersAsync();
+      expect(controller.udaApi.unlock).toHaveBeenCalledWith(hub.uda, undefined);
+
+      setLock('maybe');
+      expect(controller.platform.log.error).toHaveBeenCalledWith(expect.stringContaining('Unknown lock set message received: maybe'));
+    });
+  });
+
+  describe('doorbell ring delay', () => {
+
+    it('suppresses rings within the configured ring delay', () => {
+
+      const mqtt = createTestMqtt();
+      const device = createUAHConfig();
+
+      controller.mqtt = mqtt;
+      controller.platform.config.ringDelay = 10;
+
+      new AccessHub(controller as any, device, accessory as any);
+
+      const ring = (id: string): boolean => controller.events.emit(AccessEventType.DOORBELL_RING,
+        { data: { connected_uah_id: device.unique_id, request_id: id }, event: AccessEventType.DOORBELL_RING, event_object_id: 'x' });
+
+      mqtt.publish.mockClear();
+      ring('ring-1');
+      vi.advanceTimersByTime(5000);
+      ring('ring-2');
+
+      expect(mqtt.publish.mock.calls.filter(call => (call[1] === 'doorbell') && (call[2] === 'true'))).toHaveLength(1);
+
+      vi.advanceTimersByTime(6000);
+      ring('ring-3');
+
+      expect(mqtt.publish.mock.calls.filter(call => (call[1] === 'doorbell') && (call[2] === 'true'))).toHaveLength(2);
+    });
+  });
+
+  describe('UA Ultra terminal input mode', () => {
+
+    it('only reconfigures terminal inputs when the input mode changes', () => {
+
+      const device = createUltraConfig();
+      const hub = new AccessHub(controller as any, device, accessory as any);
+      const update = (): boolean => controller.events.emit(device.unique_id,
+        { data: hub.uda, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id });
+
+      vi.mocked(acquireService).mockClear();
+      update();
+      expect(acquireService).not.toHaveBeenCalled();
+
+      hub.uda = createUltraConfig({ extensions: [{ extension_name: 'rex_button_mode', target_config: [{ config_key: 'rex_button_mode', config_value: 'dps' }],
+        target_name: '', target_value: 'dps' }] });
+      update();
+
+      expect(acquireService).toHaveBeenCalled();
+    });
+  });
+  describe('UA Gate gate cycle', () => {
+
+    const STATE = { CLOSED: 1, CLOSING: 3, OPEN: 0, OPENING: 2 };
+
+    let hub: AccessHub;
+    let gdo: any;
+
+    beforeEach(() => {
+
+      // Expose the gate as a garage door opener, its default.
+      controller.hasFeature.mockImplementation((option: string) => !SEPARATE_ACCESSORY_OPTIONS.includes(option) && (option !== 'Hub.Door.UseLock'));
+      controller.udaApi.doors = [{ door_lock_relay_status: 'lock', door_position_status: 'close', name: 'Main Gate', unique_id: 'door-1' }];
+
+      // Start from a closed ("on" contact) and locked ("off" relay) gate.
+      hub = new AccessHub(controller as any, createUGTConfig({ configs: toConfigArray({
+
+        'input_door_dps': 'on',
+        'input_gate_dps': 'on',
+        'output_oper1_relay': 'off',
+        'output_oper2_relay': 'off',
+        'wiring_state_door-dps-neg': 'on',
+        'wiring_state_door-dps-pos': 'on',
+        'wiring_state_gate-dps-neg': 'on',
+        'wiring_state_gate-dps-pos': 'on',
+      }) }), accessory as any);
+
+      gdo = accessory._services.get('GarageDoorOpener');
+    });
+
+    // The mock keys characteristics by their HAP definitions.
+    const characteristic = (name: 'CurrentDoorState' | 'TargetDoorState'): any => gdo.getCharacteristic(controller.api.hap.Characteristic[name]);
+    const current = (): unknown => characteristic('CurrentDoorState').value;
+    const target = (): unknown => characteristic('TargetDoorState').value;
+    const setTarget = async (value: number): Promise<void> => characteristic('TargetDoorState').onSet.mock.calls[0][0](value);
+
+    it('animates opening, open, and closing, and lets the DPS sensor confirm closed', async () => {
+
+      await setTarget(STATE.OPEN);
+
+      expect(current()).toBe(STATE.OPENING);
+      expect(controller.udaApi.retrieve).toHaveBeenCalledWith(expect.stringContaining('/door-1/unlock'), expect.objectContaining({ method: 'PUT' }));
+
+      vi.advanceTimersByTime(hub.gatePhaseDuration);
+      expect(current()).toBe(STATE.OPEN);
+
+      vi.advanceTimersByTime(hub.gatePhaseDuration);
+      expect(current()).toBe(STATE.CLOSING);
+      expect(target()).toBe(STATE.CLOSED);
+
+      hub.hkDpsState = controller.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+      expect(current()).toBe(STATE.CLOSED);
+    });
+
+    it('closes on request', async () => {
+
+      await setTarget(STATE.CLOSED);
+
+      expect(current()).toBe(STATE.CLOSING);
+      expect(hub.gateDirection).toBe('closing');
+    });
+
+    it('reverts when the gate command fails', async () => {
+
+      controller.udaApi.responseOk.mockReturnValue(false);
+
+      await setTarget(STATE.OPEN);
+      vi.advanceTimersByTime(100);
+
+      expect(hub.gateDirection).toBeNull();
+      expect(target()).toBe(STATE.CLOSED);
+      expect(current()).toBe(STATE.CLOSED);
+    });
+
+    it('follows an externally opened gate and waits for the DPS sensor to close it', () => {
+
+      hub.hkDpsState = controller.api.hap.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+
+      expect(current()).toBe(STATE.OPENING);
+
+      // There's no closing timer for external cycles - the gate stays open until the sensor says otherwise.
+      vi.advanceTimersByTime(hub.gatePhaseDuration * 3);
+      expect(current()).toBe(STATE.OPEN);
+
+      hub.hkDpsState = controller.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+      expect(target()).toBe(STATE.CLOSED);
     });
   });
 });

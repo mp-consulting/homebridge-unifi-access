@@ -7,14 +7,14 @@
 import type { AccessDeviceConfig, AccessEventDoorbellCancel, AccessEventDoorbellRing, AccessEventPacket } from '../unifi/index.js';
 import { AccessEventType } from '../access-types.js';
 import {
-  ACCESSORY_GROUP_ACCESS_METHODS, ACCESSORY_GROUP_DOORBELL, AUTO_LOCK_DELAY_MS, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate,
+  ACCESSORY_GROUP_ACCESS_METHODS, ACCESSORY_GROUP_DOORBELL, type AccessEventDeviceUpdateV2, type AccessEventLocationUpdate,
   type AccessMethodKey, type HasWiringHintKey, accessMethods, terminalInputs,
 } from './access-hub-types.js';
 import { UGT_MAIN_PORT_SOURCE_ID, UGT_SIDE_PORT_SOURCE_ID } from '../access-device-catalog.js';
 import type { AccessHub, HkStateKey } from './access-hub.js';
 import { configureTerminalInputs, updateSideDoorServiceNames } from './access-hub-services.js';
 import {
-  checkUltraInputs, hasCapability, hubDpsState, hubInputState, hubLockState, serviceHost, toDpsState, toLockState,
+  checkUltraInputs, hasCapability, hubInputState, hubLockState, serviceHost, toDpsState, toLockState,
 } from './access-hub-utils.js';
 
 // Register external event handlers on the controller's event emitter. This is the entry point for all UniFi Access API events.
@@ -103,27 +103,8 @@ function handleRemoteUnlock(hub: AccessHub, packet: AccessEventPacket): void {
       return;
     }
 
-    // Set unlocked state. The hub event bus will handle MQTT publishing and logging.
-    if(isSideDoor) {
-
-      hub.hkSideDoorLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
-    } else {
-
-      hub.hkLockState = hub.hap.Characteristic.LockCurrentState.UNSECURED;
-    }
-
-    // Auto-lock after delay.
-    setTimeout(() => {
-
-      if(isSideDoor) {
-
-        hub.hkSideDoorLockState = hub.hap.Characteristic.LockCurrentState.SECURED;
-      } else {
-
-        hub.hkLockState = hub.hap.Characteristic.LockCurrentState.SECURED;
-      }
-    }, AUTO_LOCK_DELAY_MS);
-
+    // Set unlocked state and schedule the auto-lock. The hub event bus will handle MQTT publishing and logging.
+    hub.scheduleAutoRelock(!!isSideDoor);
   } else {
 
     // Non-UA Gate hubs: default behavior.
@@ -140,28 +121,7 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
     hub.hkLockState = hubLockState(hub);
   }
 
-  // Process a side door lock update event if our state has changed (UA Gate only).
-  if(hub.hints.hasSideDoor && !hub.catalog.skipsV1LockEvents) {
-
-    const newHubState = hubLockState(hub, true);
-
-    if(newHubState !== hub._hkSideDoorLockState) {
-
-      hub.hkSideDoorLockState = newHubState;
-    }
-  }
-
-  // Process a side door DPS update event if our state has changed (UA Gate only).
-  if(hub.hints.hasSideDoor && hub.hints.hasWiringDps && !hub.catalog.skipsV1LockEvents) {
-
-    const newSideDoorDpsState = hubDpsState(hub, true);
-
-    if(newSideDoorDpsState !== hub._hkSideDoorDpsState) {
-
-      hub._hkSideDoorDpsState = newSideDoorDpsState;
-      hub.hubEvents.emit('dps:changed', { isSideDoor: true, value: newSideDoorDpsState });
-    }
-  }
+  // Side door state on UA Gate hubs arrives through v2 location updates rather than v1 device updates, since UA Gate skips v1 lock events.
 
   // Process any terminal input update events if our state has changed.
   for(const { input } of terminalInputs) {
@@ -179,11 +139,18 @@ function handleDeviceUpdate(hub: AccessHub, packet: AccessEventPacket): void {
     }
   }
 
-  // Process any changes to terminal input configuration.
+  // Process any changes to terminal input configuration. Nearly every update carries the terminal input configuration, so we only reconfigure our services when
+  // the selected input mode has actually changed.
   if((packet.data as AccessDeviceConfig).extensions?.[0]?.target_config && hub.catalog.usesProxyMode) {
 
+    const wasWired = [ hub.hints.hasWiringDps, hub.hints.hasWiringRex ];
+
     checkUltraInputs(hub);
-    configureTerminalInputs(hub);
+
+    if((wasWired[0] !== hub.hints.hasWiringDps) || (wasWired[1] !== hub.hints.hasWiringRex)) {
+
+      configureTerminalInputs(hub);
+    }
   }
 
   // Process any changes to our online status.
@@ -220,7 +187,7 @@ function handleDeviceUpdateV2(hub: AccessHub, packet: AccessEventPacket): void {
 
   // Process location_states for UA Gate hubs - this contains lock state per door. Skip during gate transition since the controller sends
   // noisy/unreliable state for both doors in the same event while the gate is moving.
-  if(data.location_states && hub.catalog.usesLocationApi && (Date.now() >= hub.gateTransitionUntil) && (Date.now() >= hub.sideDoorGateTransitionUntil)) {
+  if(data.location_states && hub.catalog.usesLocationApi && (Date.now() >= hub.gateTransitionUntil)) {
 
     const locationStates = data.location_states;
 
@@ -274,7 +241,7 @@ function handleLocationUpdate(hub: AccessHub, packet: AccessEventPacket): void {
   }
 
   // Skip during gate transition since the controller sends noisy/unreliable state for all doors while the gate is moving.
-  if((Date.now() < hub.gateTransitionUntil) || (Date.now() < hub.sideDoorGateTransitionUntil)) {
+  if(Date.now() < hub.gateTransitionUntil) {
 
     return;
   }
@@ -315,6 +282,19 @@ function handleDoorbellRing(hub: AccessHub, packet: AccessEventPacket): void {
   }
 
   hub.doorbellRingRequestId = (packet.data as AccessEventDoorbellRing).request_id;
+
+  // If the user has configured a ring delay, suppress any rings that arrive within that window of the last one we delivered.
+  const ringDelay = (hub.platform.config.ringDelay ?? 0) * 1000;
+  const now = Date.now();
+
+  if(ringDelay && ((now - hub.lastDoorbellRing) < ringDelay)) {
+
+    hub.log.debug('Doorbell ring suppressed: within the configured ring delay of the previous ring.');
+
+    return;
+  }
+
+  hub.lastDoorbellRing = now;
 
   // Trigger the doorbell event in HomeKit.
   serviceHost(hub, ACCESSORY_GROUP_DOORBELL).getService(hub.hap.Service.Doorbell)?.getCharacteristic(hub.hap.Characteristic.ProgrammableSwitchEvent)

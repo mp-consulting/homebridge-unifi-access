@@ -50,6 +50,10 @@ export class FeatureOptions {
   // Default return value for unknown options (defaults to false).
   public defaultReturnValue: boolean;
 
+  // Recognizes scope identifiers (device or controller ids). "Enable.Option.X" is ambiguous for a value-centric option - X could be a global value or the id
+  // of a device being enabled without a value. When we can tell X is an identifier, we treat it as a scope rather than as a global value.
+  private readonly isIdentifier: ((segment: string) => boolean) | undefined;
+
   private _categories: FeatureCategoryEntry[];
   private _configuredOptions: string[];
   private _groups: { [index: string]: string[] };
@@ -59,7 +63,8 @@ export class FeatureOptions {
   private valueOptions: { [index: string]: number | string | undefined };
 
   // Create a new FeatureOptions instance using the available categories and options, and the list of currently configured options.
-  constructor(categories: FeatureCategoryEntry[], options: { [index: string]: FeatureOptionEntry[] }, configuredOptions: string[] = []) {
+  constructor(categories: FeatureCategoryEntry[], options: { [index: string]: FeatureOptionEntry[] }, configuredOptions: string[] = [],
+    settings: { isIdentifier?: (segment: string) => boolean } = {}) {
 
     // Initialize our defaults.
     this._categories = [];
@@ -69,6 +74,7 @@ export class FeatureOptions {
     this.configLookup = new Map();
     this.defaultReturnValue = false;
     this.defaults = {};
+    this.isIdentifier = settings.isIdentifier;
     this.valueOptions = {};
 
     this.categories = categories;
@@ -450,8 +456,8 @@ export class FeatureOptions {
         if(separatorIndex === -1) {
 
           // Single trailing segment after the option name. At global scope this is the value; at scoped scope it's the id. Register under the option name as
-          // the base key so that global value lookups find it.
-          if(!this.configLookup.has(optName)) {
+          // the base key so that global value lookups find it - unless we can tell it's an id, in which case the scoped tail key registered above suffices.
+          if(!this.configLookup.has(optName) && !this.isIdentifier?.(extraOriginal)) {
 
             this.configLookup.set(optName, { enabled: true, value: extraOriginal });
           }

@@ -34,6 +34,8 @@ const WS_DEFAULT_MAX_PAYLOAD = 64 * 1024 * 1024;
 // Options available when connecting a WebSocket.
 export interface WebSocketClientOptions {
 
+  // An agent to establish the connection with. When provided, the agent's TLS policy applies and rejectUnauthorized is ignored.
+  agent?: http.Agent;
   headers?: Record<string, string>;
   heartbeatInterval?: number;
   maxPayload?: number;
@@ -56,6 +58,7 @@ export class WebSocketClient extends EventEmitter {
   public readyState: number;
 
   private buffer: Buffer;
+  private bytesNeeded: number;
   private closeTimer: Nullable<NodeJS.Timeout>;
   private fragments: Buffer[];
   private fragmentOpcode: number;
@@ -63,6 +66,8 @@ export class WebSocketClient extends EventEmitter {
   private heartbeatInterval: number;
   private heartbeatTimer: Nullable<NodeJS.Timeout>;
   private maxPayload: number;
+  private pending: Buffer[];
+  private pendingLength: number;
   private request: Nullable<http.ClientRequest>;
   private sawFrame: boolean;
   private socket: Nullable<net.Socket>;
@@ -73,6 +78,9 @@ export class WebSocketClient extends EventEmitter {
     super();
 
     this.buffer = Buffer.alloc(0);
+    this.bytesNeeded = 0;
+    this.pending = [];
+    this.pendingLength = 0;
     this.closeTimer = null;
     this.fragments = [];
     this.fragmentOpcode = 0;
@@ -99,6 +107,7 @@ export class WebSocketClient extends EventEmitter {
 
     const req = requestFn({
 
+      agent: options.agent,
       headers: {
 
         'Connection': 'Upgrade',
@@ -254,12 +263,27 @@ export class WebSocketClient extends EventEmitter {
   // Process inbound data from the server, decoding complete WebSocket frames as they arrive.
   private processData(data: Buffer): void {
 
-    this.buffer = Buffer.concat([ this.buffer, data ]);
+    // Queue inbound chunks until we have enough data to make progress on the frame we're waiting on. Joining the buffer on every chunk would make reassembling
+    // a large frame quadratic in the number of chunks it arrives in.
+    this.pending.push(data);
+    this.pendingLength += data.length;
+
+    if(this.pendingLength < this.bytesNeeded) {
+
+      return;
+    }
+
+    this.buffer = (this.pending.length === 1) ? this.pending[0] : Buffer.concat(this.pending, this.pendingLength);
+    this.pending = [];
+    this.pendingLength = 0;
+    this.bytesNeeded = 0;
 
     for(;;) {
 
       // We need at least the two-byte frame header.
       if(this.buffer.length < 2) {
+
+        this.awaitBytes(2);
 
         return;
       }
@@ -275,6 +299,8 @@ export class WebSocketClient extends EventEmitter {
 
         if(this.buffer.length < (offset + 2)) {
 
+          this.awaitBytes(offset + 2);
+
           return;
         }
 
@@ -283,6 +309,8 @@ export class WebSocketClient extends EventEmitter {
       } else if(payloadLength === 127) {
 
         if(this.buffer.length < (offset + 8)) {
+
+          this.awaitBytes(offset + 8);
 
           return;
         }
@@ -295,6 +323,15 @@ export class WebSocketClient extends EventEmitter {
       // way, we're done. For data frames, we account for any partially assembled fragmented message as well so fragmentation can't be used to sidestep the
       // cap - control frames can arrive interleaved between fragments and don't contribute to the message being assembled, so they're checked on their own.
       const isControlFrame = opcode >= 0x8;
+
+      // RFC 6455 limits control frames to 125 bytes and forbids fragmenting them.
+      if(isControlFrame && ((payloadLength > 125) || !isFinal)) {
+
+        this.emitError(new Error('WebSocket protocol error: invalid control frame.'));
+        this.terminate();
+
+        return;
+      }
 
       if((payloadLength > this.maxPayload) || (!isControlFrame && ((this.fragmentSize + payloadLength) > this.maxPayload))) {
 
@@ -311,6 +348,8 @@ export class WebSocketClient extends EventEmitter {
 
         if(this.buffer.length < (offset + 4)) {
 
+          this.awaitBytes(offset + 4);
+
           return;
         }
 
@@ -320,6 +359,8 @@ export class WebSocketClient extends EventEmitter {
 
       // Wait for the complete frame to arrive.
       if(this.buffer.length < (offset + payloadLength)) {
+
+        this.awaitBytes(offset + payloadLength);
 
         return;
       }
@@ -338,6 +379,20 @@ export class WebSocketClient extends EventEmitter {
 
       this.processFrame(opcode, payload, isFinal);
     }
+  }
+
+  // Stash the unprocessed remainder of our buffer and note how many bytes we need before we can make further progress.
+  private awaitBytes(count: number): void {
+
+    this.bytesNeeded = count;
+
+    if(this.buffer.length) {
+
+      this.pending = [ this.buffer ];
+      this.pendingLength = this.buffer.length;
+    }
+
+    this.buffer = Buffer.alloc(0);
   }
 
   // Handle a single decoded WebSocket frame, reassembling fragmented messages as needed.

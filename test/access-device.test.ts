@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AccessDevice } from '../src/access-device.js';
 import type { AccessDeviceConfig } from '../src/unifi/index.js';
 import { AccessReservedNames } from '../src/access-types.js';
-import { ACCESS_MOTION_DURATION, ACCESS_OCCUPANCY_DURATION } from '../src/settings.js';
 import { createMockController } from './mocks/controller.js';
 import { createMockAccessory, createMockService } from './mocks/homebridge.js';
 import { createMockDeviceConfig, createMockEnterprise } from './mocks/unifi-access.js';
@@ -214,8 +213,6 @@ describe('AccessDevice', () => {
       expect(device.isReservedName(AccessReservedNames.CONTACT_DPS)).toBe(true);
       expect(device.isReservedName(AccessReservedNames.LOCK_DOOR_SIDE)).toBe(true);
       expect(device.isReservedName(AccessReservedNames.SWITCH_DOORBELL_TRIGGER)).toBe(true);
-      expect(device.isReservedName(AccessReservedNames.SWITCH_MOTION_SENSOR)).toBe(true);
-      expect(device.isReservedName(AccessReservedNames.SWITCH_MOTION_TRIGGER)).toBe(true);
       expect(device.isReservedName(AccessReservedNames.SWITCH_LOCK_TRIGGER)).toBe(true);
       expect(device.isReservedName(AccessReservedNames.SWITCH_ACCESSMETHOD_FACE)).toBe(true);
       expect(device.isReservedName(AccessReservedNames.SWITCH_ACCESSMETHOD_NFC)).toBe(true);
@@ -376,8 +373,9 @@ describe('AccessDevice', () => {
 
       device.cleanup();
 
-      // debug messages route through platform.debug (via createPrefixedLogger).
-      expect(controller.platform.debug).toHaveBeenCalledWith(expect.stringContaining('Failed to remove event listener for event-1'));
+      // debug messages route through platform.debug (via createPrefixedLogger), which formats them lazily.
+      expect(controller.platform.debug).toHaveBeenCalledWith(expect.stringContaining('Failed to remove event listener for %s'), expect.any(String), 'event-1',
+        expect.any(Error));
     });
   });
 
@@ -386,160 +384,6 @@ describe('AccessDevice', () => {
     it('should return true', () => {
 
       expect(device.testConfigureHints()).toBe(true);
-    });
-
-    it('should set default motion duration from ACCESS_MOTION_DURATION', () => {
-
-      controller.platform.featureOptions.getInteger.mockReturnValue(null);
-
-      device.testConfigureHints();
-
-      expect(device.hints.motionDuration).toBe(ACCESS_MOTION_DURATION);
-    });
-
-    it('should set default occupancy duration from ACCESS_OCCUPANCY_DURATION', () => {
-
-      controller.platform.featureOptions.getInteger.mockReturnValue(null);
-
-      device.testConfigureHints();
-
-      expect(device.hints.occupancyDuration).toBe(ACCESS_OCCUPANCY_DURATION);
-    });
-
-    it('should use a custom motion duration when provided', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.Duration') {
-
-          return 30;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.motionDuration).toBe(30);
-    });
-
-    it('should use a custom occupancy duration when provided', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.OccupancySensor.Duration') {
-
-          return 600;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.occupancyDuration).toBe(600);
-    });
-
-    it('should enforce a minimum motion duration of 2 seconds', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.Duration') {
-
-          return 1;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.motionDuration).toBe(2);
-    });
-
-    it('should enforce a minimum motion duration of 2 when set to 0', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.Duration') {
-
-          return 0;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.motionDuration).toBe(2);
-    });
-
-    it('should allow motion duration of exactly 2', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.Duration') {
-
-          return 2;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.motionDuration).toBe(2);
-    });
-
-    it('should enforce a minimum occupancy duration of 60 seconds', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.OccupancySensor.Duration') {
-
-          return 30;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.occupancyDuration).toBe(60);
-    });
-
-    it('should enforce a minimum occupancy duration of 60 when set to 0', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.OccupancySensor.Duration') {
-
-          return 0;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.occupancyDuration).toBe(60);
-    });
-
-    it('should allow occupancy duration of exactly 60', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.OccupancySensor.Duration') {
-
-          return 60;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(device.hints.occupancyDuration).toBe(60);
     });
 
     it('should set syncName from feature option', () => {
@@ -560,64 +404,6 @@ describe('AccessDevice', () => {
       expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Device name synchronization with HomeKit is disabled.'));
     });
 
-    it('should log when motion duration differs from default', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.Duration') {
-
-          return 20;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Motion event duration set to'));
-    });
-
-    it('should log when occupancy duration differs from default', () => {
-
-      controller.platform.featureOptions.getInteger.mockImplementation((option: string) => {
-
-        if(option === 'Motion.OccupancySensor.Duration') {
-
-          return 600;
-        }
-
-        return null;
-      });
-
-      device.testConfigureHints();
-
-      expect(controller.platform.log.info).toHaveBeenCalledWith(expect.stringContaining('Occupancy event duration set to'));
-    });
-
-    it('should not log motion duration when it matches the default', () => {
-
-      controller.platform.featureOptions.getInteger.mockReturnValue(null);
-      controller.hasFeature.mockReturnValue(false);
-
-      device.testConfigureHints();
-
-      const calls = controller.platform.log.info.mock.calls.map((c: unknown[]) => String(c[0]));
-
-      expect(calls.some((msg: string) => msg.includes('Motion event duration'))).toBe(false);
-    });
-
-    it('should not log occupancy duration when it matches the default', () => {
-
-      controller.platform.featureOptions.getInteger.mockReturnValue(null);
-      controller.hasFeature.mockReturnValue(false);
-
-      device.testConfigureHints();
-
-      const calls = controller.platform.log.info.mock.calls.map((c: unknown[]) => String(c[0]));
-
-      expect(calls.some((msg: string) => msg.includes('Occupancy event duration'))).toBe(false);
-    });
-
     it('should set enabled hint from Device feature option', () => {
 
       controller.hasFeature.mockImplementation((option: string) => option === 'Device');
@@ -627,14 +413,6 @@ describe('AccessDevice', () => {
       expect(device.hints.enabled).toBe(true);
     });
 
-    it('should set logMotion hint from Log.Motion feature option', () => {
-
-      controller.hasFeature.mockImplementation((option: string) => option === 'Log.Motion');
-
-      device.testConfigureHints();
-
-      expect(device.hints.logMotion).toBe(true);
-    });
   });
 
   describe('setInfo', () => {

@@ -44,6 +44,14 @@
               "description": "URL for the MQTT broker you'd like to publish event messages to. Default: None."
             },
 
+            "mqttVerifyTls": {
+              "type": "boolean",
+              "title": "Verify MQTT Broker TLS Certificate",
+              "required": false,
+              "default": true,
+              "description": "Validate the MQTT broker's TLS certificate when connecting over mqtts:// or ssl://. Only disable this if your broker uses a self-signed certificate. Default: enabled."
+            },
+
             "name": {
               "type": "string",
               "title": "Controller Name",
@@ -72,7 +80,7 @@
               "type": "boolean",
               "title": "Verify TLS Certificate",
               "required": false,
-              "description": "Validate the controller's TLS certificate when connecting. Leave this disabled unless your controller uses a certificate signed by a trusted certificate authority - UniFi controllers use self-signed certificates by default. Default: disabled."
+              "description": "Validate the controller's TLS certificate against trusted certificate authorities. Leave this disabled unless your controller uses a certificate signed by a trusted certificate authority - UniFi controllers use self-signed certificates by default. When disabled, the controller's certificate is pinned the first time the plugin connects, and a different certificate is refused thereafter. Default: disabled."
             }
           }
         }
@@ -146,7 +154,8 @@
                 {
                   "description": "These settings are optional. The defaults work well for almost everyone.",
                   "items": [
-                    "controllers[].name"
+                    "controllers[].name",
+                    "controllers[].verifyTls"
                   ]
                 }
               ]
@@ -162,7 +171,8 @@
                   "description": "MQTT support will only be enabled if an MQTT broker URL is specified below.",
                   "items": [
                     "controllers[].mqttUrl",
-                    "controllers[].mqttTopic"
+                    "controllers[].mqttTopic",
+                    "controllers[].mqttVerifyTls"
                   ]
                 }
               ]

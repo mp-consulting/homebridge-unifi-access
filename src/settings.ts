@@ -28,17 +28,11 @@ export const ACCESS_GATE_DIRECTION_DURATION = 90;
 // Default delay, in minutes, before locking an unlocked door relay.
 export const ACCESS_DEVICE_UNLOCK_INTERVAL = 0;
 
-// Default duration, in seconds, of motion events. Setting this too low will potentially cause a lot of notification spam.
-export const ACCESS_MOTION_DURATION = 10;
-
-// How often, in seconds, should we try to reconnect with an MQTT broker, if we have one configured.
-export const ACCESS_MQTT_RECONNECT_INTERVAL = 60;
+// File, within the Homebridge storage path, where we persist the TLS certificate fingerprints we've pinned for our controllers.
+export const ACCESS_TLS_PIN_FILE = 'unifi-access-tls-pins.json';
 
 // Default MQTT topic to use when publishing events. This is in the form of: unifi/access/MAC/event
 export const ACCESS_MQTT_TOPIC = 'unifi/access';
-
-// Default duration, in seconds, of occupancy events.
-export const ACCESS_OCCUPANCY_DURATION = 300;
 
 // Delay, in milliseconds, before reverting a HomeKit characteristic value after a failed or no-op set.
 export const HK_CHARACTERISTIC_REVERT_DELAY_MS = 50;
@@ -47,6 +41,12 @@ export const HK_CHARACTERISTIC_REVERT_DELAY_MS = 50;
 export function normalizeMac(mac: string): string {
 
   return mac.replace(/:/g, '').toUpperCase();
+}
+
+// Recognize the identifiers we scope feature options to: a MAC address without separators, optionally followed by a port for multi-door devices (e.g. UAH-Ent).
+export function isAccessIdentifier(segment: string): boolean {
+
+  return /^[0-9a-f]{12}(-[a-z0-9]+)?$/i.test(segment);
 }
 
 // Validate a controller address, rejecting loopback, link-local, and unspecified addresses.
@@ -59,8 +59,26 @@ export function isValidAddress(address: string): boolean {
 
   const trimmed = address.trim().toLowerCase();
 
-  if(!trimmed || (trimmed === 'localhost') || trimmed.startsWith('127.') || trimmed.startsWith('169.254.') || (trimmed === '0.0.0.0') ||
-    trimmed.startsWith('[') || trimmed.includes('::')) {
+  // We only accept a hostname or IPv4 address, optionally with a port. The address is spliced into the URLs we connect to, so anything else - credentials,
+  // paths, fragments - could redirect where we send the user's login.
+  if(!/^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*\.?(:\d{1,5})?$/.test(trimmed)) {
+
+    return false;
+  }
+
+  let host;
+
+  // Let the URL parser canonicalize the host. This normalizes alternative IPv4 notations (e.g. 2130706433, 0177.0.0.1, or 127.1) into dotted-quad form so
+  // they can't slip past the checks below.
+  try {
+
+    host = new URL('https://' + trimmed).hostname.replace(/\.$/, '');
+  } catch {
+
+    return false;
+  }
+
+  if((host === 'localhost') || host.endsWith('.localhost') || host.startsWith('127.') || host.startsWith('169.254.') || (host === '0.0.0.0')) {
 
     return false;
   }
@@ -68,15 +86,16 @@ export function isValidAddress(address: string): boolean {
   return true;
 }
 
-// Factory for the prefixed logging adapter pattern used across devices and controllers.
+// Factory for the prefixed logging adapter pattern used across devices and controllers. The name is passed as a parameter rather than concatenated into the
+// format string so that names containing format specifiers (e.g. '%') are logged verbatim. Debug messages are formatted lazily by the platform.
 export function createPrefixedLogger(platformLog: Logging, debugFn: (message: string, ...parameters: unknown[]) => void,
   nameGetter: () => string): HomebridgePluginLogging {
 
   return {
 
-    debug: (message: string, ...parameters: unknown[]): void => debugFn(util.format(nameGetter() + ': ' + message, ...parameters)),
-    error: (message: string, ...parameters: unknown[]): void => platformLog.error(util.format(nameGetter() + ': ' + message, ...parameters)),
-    info: (message: string, ...parameters: unknown[]): void => platformLog.info(util.format(nameGetter() + ': ' + message, ...parameters)),
-    warn: (message: string, ...parameters: unknown[]): void => platformLog.warn(util.format(nameGetter() + ': ' + message, ...parameters)),
+    debug: (message: string, ...parameters: unknown[]): void => debugFn('%s: ' + message, nameGetter(), ...parameters),
+    error: (message: string, ...parameters: unknown[]): void => platformLog.error(util.format('%s: ' + message, nameGetter(), ...parameters)),
+    info: (message: string, ...parameters: unknown[]): void => platformLog.info(util.format('%s: ' + message, nameGetter(), ...parameters)),
+    warn: (message: string, ...parameters: unknown[]): void => platformLog.warn(util.format('%s: ' + message, nameGetter(), ...parameters)),
   };
 }

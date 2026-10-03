@@ -6,31 +6,15 @@
 'use strict';
 
 import { featureOptionCategories, featureOptions } from '../dist/access-options.js';
-import { AccessApi } from '../dist/unifi/index.js';
+import { ACCESS_TLS_PIN_FILE, isValidAddress } from '../dist/settings.js';
+import { AccessApi, AccessTlsPinStore } from '../dist/unifi/index.js';
+import { deviceIdentifier } from '../dist/access-device-catalog.js';
 import { HomebridgePluginUiServer } from '../dist/lib/ui-server.js';
 import dgram from 'node:dgram';
 import https from 'node:https';
 import os from 'node:os';
+import path from 'node:path';
 import util from 'node:util';
-
-// Validate a controller address, rejecting loopback, link-local, and unspecified addresses.
-function isValidAddress(address) {
-
-  if(!address || (typeof address !== 'string')) {
-
-    return false;
-  }
-
-  const trimmed = address.trim().toLowerCase();
-
-  if(!trimmed || (trimmed === 'localhost') || trimmed.startsWith('127.') || trimmed.startsWith('169.254.') || (trimmed === '0.0.0.0') ||
-    trimmed.startsWith('[') || trimmed.includes('::')) {
-
-    return false;
-  }
-
-  return true;
-}
 
 // Number of adjacent /24 subnets to scan in each direction from each local interface.
 // A value of 5 means scanning ±5 subnets (up to 2,540 unicast probes per local subnet).
@@ -55,12 +39,18 @@ const UBNT_TLV = {
 class PluginUiServer extends HomebridgePluginUiServer {
 
   errorInfo;
+  tlsPins;
 
   constructor() {
 
     super();
 
     this.errorInfo = '';
+
+    // Share the plugin's trust-on-first-use certificate pins, so that the webUI and the plugin trust the same controller certificate, whichever of them
+    // connects first.
+    this.tlsPins = this.homebridgeStoragePath ?
+      new AccessTlsPinStore(path.join(this.homebridgeStoragePath, ACCESS_TLS_PIN_FILE), (message) => console.error(message)) : null;
 
     // Register getErrorMessage() with the Homebridge server API.
     this.#registerGetErrorMessage();
@@ -93,31 +83,39 @@ class PluginUiServer extends HomebridgePluginUiServer {
     // Return the list of Access devices.
     this.onRequest('/getDevices', async (controller) => {
 
+      // Clear out any error from a previous request so we don't report a stale one.
+      this.errorInfo = '';
+
       // Validate the controller address before attempting a connection.
-      if(!isValidAddress(controller.address)) {
+      if(!isValidAddress(controller?.address)) {
 
         return [];
       }
 
+      const log = {
+
+        debug: () => {},
+        error: (message, ...parameters) => {
+
+          // Save the error to inform the user in the webUI.
+          this.errorInfo = util.format(message, ...parameters);
+
+          console.error(this.errorInfo);
+        },
+        info: () => {},
+        warn: () => {},
+      };
+
+      // Connect to the Access controller, honoring the user's TLS verification preference and our pinned certificate.
+      const verifyTls = controller.verifyTls === true;
+      const udaApi = new AccessApi(log, {
+
+        onFingerprint: (fingerprint) => this.tlsPins?.set(controller.address, fingerprint),
+        pinnedFingerprint: verifyTls ? undefined : this.tlsPins?.get(controller.address),
+        verifyTls,
+      });
+
       try {
-
-        const log = {
-
-          debug: () => {},
-          error: (message, parameters = []) => {
-
-            // Save the error to inform the user in the webUI.
-            this.errorInfo = util.format(message, ...(Array.isArray(parameters) ? parameters : [parameters]));
-
-             
-            console.error(this.errorInfo);
-          },
-          info: () => {},
-          warn: () => {},
-        };
-
-        // Connect to the Access controller.
-        const udaApi = new AccessApi(log);
 
         if(!(await udaApi.login(controller.address, controller.username, controller.password))) {
 
@@ -132,30 +130,22 @@ class PluginUiServer extends HomebridgePluginUiServer {
 
         // A controller with no adopted Access devices bootstraps successfully but leaves the device list null.
         const devices = (udaApi.devices ?? []).filter(x => x.is_managed);
+        const sortKey = device => String([ device.alias, device.name, device.model ].find(v => (v !== undefined) && (v !== null) && (v !== '')) ?? '').toLowerCase();
 
-        devices.sort((a, b) => {
+        devices.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
-          const nonEmpty = (...args) => args.find(v => (v !== undefined) && (v !== null) && (v !== ''));
-
-          const aCase = nonEmpty(a.alias, a.name, a.model).toLowerCase();
-          const bCase = nonEmpty(b.alias, b.name, b.model).toLowerCase();
-
-          return aCase > bCase ? 1 : (bCase > aCase ? -1 : 0);
-        });
-
-        const result = [ udaApi.controller, ...devices ];
-
-        // Clean up the API session.
-        udaApi.logout();
-
-        return result;
+        // Tag each device with the identifier the plugin uses to scope feature options, so the webUI never has to replicate that logic.
+        return [ udaApi.controller, ...devices.map(device => ({ ...device, featureId: deviceIdentifier(device) })) ];
       } catch(err) {
 
-         
-        console.log(err);
+        console.error(err);
 
         // Return nothing if we error out for some reason.
         return [];
+      } finally {
+
+        // Always tear down the API session - including the events connection and connection pool - whichever way we leave.
+        udaApi.close();
       }
     });
   }

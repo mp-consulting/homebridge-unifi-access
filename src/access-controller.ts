@@ -15,7 +15,7 @@ import { AccessEventType } from './access-types.js';
 import { AccessEvents } from './access-events.js';
 import { AccessHub } from './hub/index.js';
 import type { AccessPlatform } from './access-platform.js';
-import { getDeviceCatalog } from './access-device-catalog.js';
+import { deviceIdentifier, getDeviceCatalog } from './access-device-catalog.js';
 import util from 'node:util';
 
 // Check if a device has supported hub or reader capabilities.
@@ -40,6 +40,8 @@ export class AccessController {
   public uda: AccessControllerConfig;
   public udaApi!: AccessApi;
   private bootstrapRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly retryInterval: number;
+  private isConfigValid: boolean;
   private unsupportedDevices: Record<string, boolean>;
 
   constructor(platform: AccessPlatform, accessOptions: AccessControllerOptions) {
@@ -49,6 +51,11 @@ export class AccessController {
     this.configuredDevices = {};
     this.deviceRemovalQueue = {};
     this.hap = this.api.hap;
+    this.isConfigValid = false;
+
+    // How long to wait between connection attempts. We add up to 20% of jitter so that multiple controllers recovering from the same outage don't retry in
+    // lockstep.
+    this.retryInterval = Math.round(ACCESS_CONTROLLER_RETRY_INTERVAL * 1000 * (1 + (Math.random() * 0.2)));
     this.logApiErrors = true;
     this.mqtt = null;
     this.name = accessOptions.name ?? accessOptions.address;
@@ -72,17 +79,37 @@ export class AccessController {
 
       return;
     }
+
+    this.isConfigValid = true;
   }
 
   // Retrieve the bootstrap configuration from the Access controller.
   private async bootstrapController(): Promise<void> {
 
     // Attempt to bootstrap the controller until we're successful.
-    await retry(async () => this.udaApi.getBootstrap(), ACCESS_CONTROLLER_RETRY_INTERVAL * 1000);
+    await retry(async () => this.udaApi.getBootstrap(), this.retryInterval);
+  }
+
+  // Shut down our connection to the Access controller, releasing our timers and network connections.
+  public shutdown(): void {
+
+    clearTimeout(this.bootstrapRefreshTimer);
+    this.bootstrapRefreshTimer = undefined;
+
+    // We may be shutting down before we've ever connected.
+    this.udaApi?.close();
+    this.mqtt?.end();
+    this.mqtt = null;
   }
 
   // Initialize our connection to the UniFi Access controller.
   public async login(): Promise<void> {
+
+    // We've already told the user what's wrong with this controller's configuration - there's nothing to connect to.
+    if(!this.isConfigValid) {
+
+      return;
+    }
 
     // The plugin has been disabled globally. Let the user know that we're done here.
     if(!this.hasFeature('Device')) {
@@ -95,7 +122,7 @@ export class AccessController {
     // Initialize our connection to the UniFi Access API.
     const udaLog = {
 
-      debug: (message: string, ...parameters: unknown[]): void => this.platform.debug(util.format(message, ...parameters)),
+      debug: (message: string, ...parameters: unknown[]): void => this.platform.debug(message, ...parameters),
       error: (message: string, ...parameters: unknown[]): void => {
 
         if(this.logApiErrors) {
@@ -107,13 +134,23 @@ export class AccessController {
       warn: (message: string, ...parameters: unknown[]): void => this.platform.log.warn(util.format(message, ...parameters)),
     };
 
-    // Create our connection to the Access API. TLS certificate validation is off by default since UniFi controllers ship with self-signed certificates, but
-    // setups with proper certificates can opt in through the verifyTls controller option.
-    this.udaApi = new AccessApi(udaLog, { verifyTls: this.config.verifyTls === true });
+    // Create our connection to the Access API. UniFi controllers ship with self-signed certificates, so rather than validating the certificate chain we pin
+    // the controller's certificate the first time we see it and refuse to talk to anything presenting a different certificate thereafter. Setups with proper
+    // certificates can opt in to strict validation through the verifyTls controller option instead.
+    const verifyTls = this.config.verifyTls === true;
+
+    this.udaApi = new AccessApi(udaLog, {
+
+      onFingerprint: (fingerprint: string): void => this.platform.tlsPins.set(this.config.address, fingerprint),
+      onFingerprintMismatch: (): void => this.log.error('If you have replaced or regenerated the certificate on your controller, remove the entry for %s from %s ' +
+        'and restart Homebridge to trust the new certificate.', this.config.address, this.platform.tlsPins.filename),
+      pinnedFingerprint: verifyTls ? undefined : this.platform.tlsPins.get(this.config.address),
+      verifyTls,
+    });
 
     // Attempt to login to the Access controller, retrying at reasonable intervals. This accounts for cases where the Access controller or the network
     // connection may not be fully available when we startup.
-    await retry(async () => this.udaApi.login(this.config.address, this.config.username, this.config.password), ACCESS_CONTROLLER_RETRY_INTERVAL * 1000);
+    await retry(async () => this.udaApi.login(this.config.address, this.config.username, this.config.password), this.retryInterval);
 
     // Now, let's get the bootstrap configuration from the Access controller.
     await this.bootstrapController();
@@ -151,7 +188,7 @@ export class AccessController {
     // Initialize MQTT, if needed.
     if(!this.mqtt && this.config.mqttUrl) {
 
-      this.mqtt = new MqttClient(this.config.mqttUrl, this.config.mqttTopic, this.log);
+      this.mqtt = new MqttClient(this.config.mqttUrl, this.config.mqttTopic, this.log, undefined, { verifyTls: this.config.mqttVerifyTls !== false });
     }
 
     // Inform the user about the devices we see.
@@ -173,21 +210,23 @@ export class AccessController {
     const bootstrapRefresh = (): void => {
 
       clearTimeout(this.bootstrapRefreshTimer);
-      this.bootstrapRefreshTimer = setTimeout(() => void this.bootstrapController(), ACCESS_CONTROLLER_REFRESH_INTERVAL * 1000);
+      this.bootstrapRefreshTimer = setTimeout(() => {
+
+        this.bootstrapController().catch((error: unknown) => this.log.error('Unable to refresh the controller configuration: %s.', error));
+      }, ACCESS_CONTROLLER_REFRESH_INTERVAL * 1000);
     };
 
-    // Sync the Access controller's devices with HomeKit.
+    // Sync the Access controller's devices with HomeKit. Adding or removing accessories persists the accessory cache as it happens, so we don't need to
+    // rewrite it on every periodic refresh.
     const syncUdaHomeKit = (): void => {
 
       // Sync status and check for any new or removed accessories.
       this.discoverAndSyncAccessories();
-
-      // Refresh the accessory cache.
-      this.api.updatePlatformAccessories(this.platform.accessories);
     };
 
-    // Initialize our Access controller device sync.
+    // Initialize our Access controller device sync, and refresh the accessory cache with the state we've restored and configured at startup.
     syncUdaHomeKit();
+    this.api.updatePlatformAccessories(this.platform.accessories);
 
     // Let's set a listener to wait for bootstrap events to occur so we can keep ourselves in sync with the Access controller.
     this.udaApi.on('bootstrap', () => {
@@ -298,9 +337,12 @@ export class AccessController {
       return true;
     }
 
-    // Update the configuration on an existing Access device.
-     
-    this.events.emit(AccessEventType.DEVICE_UPDATE, { data: device, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id, receiver_id: '', save_to_history: false });
+    // Update the configuration on an existing Access device. We emit by event type so our device state is refreshed first, and then by device so that the
+    // device itself can reconcile anything it may have missed while the events API was unavailable.
+    const packet = { data: device, event: AccessEventType.DEVICE_UPDATE, event_object_id: device.unique_id, receiver_id: '', save_to_history: false };
+
+    this.events.emit(AccessEventType.DEVICE_UPDATE, packet);
+    this.events.emit(device.unique_id, packet);
 
     return true;
   }
@@ -330,10 +372,16 @@ export class AccessController {
   // Cleanup removed Access devices from HomeKit.
   private cleanupDevices(): void {
 
+    // Determine whether an accessory is enabled, based on the serial number we've assigned it. We use this for accessories we may no longer have a device for.
+    const isAccessoryEnabled = (accessory: PlatformAccessory): boolean => this.platform.featureOptions.test('Device',
+      (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string, this.id);
+
+    // The devices the Access controller currently knows about, by MAC address.
+    const controllerMacs = new Set(this.udaApi.devices?.map(device => device.mac.toLowerCase()));
+
     // Process the device removal queue before we do anything else.
-    this.platform.accessories.filter(accessory => accessory.UUID in this.deviceRemovalQueue).map(accessory =>
-      this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test('Device',
-        (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string, this.id)));
+    this.platform.accessories.filter(accessory => accessory.UUID in this.deviceRemovalQueue).forEach(accessory =>
+      this.removeHomeKitDevice(accessory, !isAccessoryEnabled(accessory)));
 
     // Iterate over a copy - removing an accessory mutates the underlying array.
     for(const accessory of [...this.platform.accessories]) {
@@ -342,7 +390,8 @@ export class AccessController {
       // their parent is still configured, and clean them up when it no longer is.
       if(accessory.context.childOf) {
 
-        if(!this.configuredDevices[accessory.context.childOf as string]) {
+        // Children belonging to another controller are that controller's business - we only know about our own devices.
+        if((accessory.context.controller === this.uda.host.mac) && !this.configuredDevices[accessory.context.childOf as string]) {
 
           this.removeChildAccessory(accessory);
         }
@@ -357,8 +406,7 @@ export class AccessController {
       // HomeKit but not in Access. We catch those orphan devices here.
       if(!accessDevice) {
 
-        this.removeHomeKitDevice(accessory, !this.platform.featureOptions.test('Device',
-          (accessory.getService(this.hap.Service.AccessoryInformation)?.getCharacteristic(this.hap.Characteristic.SerialNumber).value ?? '') as string));
+        this.removeHomeKitDevice(accessory, !isAccessoryEnabled(accessory));
 
         continue;
       }
@@ -371,8 +419,7 @@ export class AccessController {
       }
 
       // Check to see if the device still exists on the Access controller and the user has not chosen to hide it.
-      if(isSupportedDevice(accessDevice.uda) &&
-        this.udaApi.devices?.some((x: AccessDeviceConfig) => x.mac.toLowerCase() === accessDevice.uda.mac.toLowerCase())) {
+      if(isSupportedDevice(accessDevice.uda) && controllerMacs.has(accessDevice.uda.mac.toLowerCase())) {
 
         // In case we have previously queued a device for deletion, let's remove it from the queue since it's reappeared.
         delete this.deviceRemovalQueue[accessDevice.accessory.UUID];
@@ -381,7 +428,7 @@ export class AccessController {
       }
 
       // Process the device removal.
-      this.removeHomeKitDevice(accessory, !this.hasFeature('Device', accessDevice.uda));
+      this.removeHomeKitDevice(accessory, !accessDevice.hasFeature('Device'));
     }
   }
 
@@ -552,10 +599,7 @@ export class AccessController {
   // Lookup a device by it's identifier and return it if it exists.
   public deviceLookup(deviceId: string): AccessDevice | null {
 
-    // Find the device.
-    const foundDevice = Object.keys(this.configuredDevices).find(x => this.configuredDevices[x]?.uda.unique_id === deviceId);
-
-    return foundDevice ? this.configuredDevices[foundDevice] as AccessDevice : null;
+    return Object.values(this.configuredDevices).find(device => device?.uda.unique_id === deviceId) ?? null;
   }
 
   // Utility function to return a floating point configuration parameter on a device.
@@ -573,9 +617,10 @@ export class AccessController {
   // Utility for checking feature options on the controller.
   public hasFeature(option: string, device?: AccessControllerConfig | AccessDeviceConfig): boolean {
 
-    const deviceMac = (device as AccessDeviceConfig | undefined)?.mac;
+    // Devices are identified the same way everywhere we scope feature options, so that per-door options on multi-door devices (e.g. UAH-Ent) match.
+    const deviceId = (device as AccessDeviceConfig | undefined)?.mac ? deviceIdentifier(device as AccessDeviceConfig) : undefined;
 
-    return this.platform.featureOptions.test(option, deviceMac ? normalizeMac(deviceMac) : this.id, this.id);
+    return this.platform.featureOptions.test(option, deviceId ?? this.id, this.id);
   }
 
   // Return a unique identifier for an Access controller.

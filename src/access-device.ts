@@ -3,14 +3,14 @@
  *
  * access-device.ts: Base class for all UniFi Access devices.
  */
-import { ACCESS_MOTION_DURATION, ACCESS_OCCUPANCY_DURATION, HK_CHARACTERISTIC_REVERT_DELAY_MS, createPrefixedLogger, normalizeMac } from './settings.js';
-import type { API, CharacteristicValue, HAP, PlatformAccessory } from 'homebridge';
+import { createPrefixedLogger, normalizeMac } from './settings.js';
+import type { API, HAP, PlatformAccessory } from 'homebridge';
 import type { AccessApi, AccessDeviceConfig, AccessEventPacket } from './unifi/index.js';
 import { type HomebridgePluginLogging, type Nullable, sanitizeName } from './lib/index.js';
 import type { AccessController } from './access-controller.js';
 import type { AccessPlatform } from './access-platform.js';
 import { AccessReservedNames } from './access-types.js';
-import { getDeviceCatalog } from './access-device-catalog.js';
+import { deviceIdentifier } from './access-device-catalog.js';
 
 // Pre-computed set for fast reserved name lookups.
 const reservedNameSet = new Set(Object.values(AccessReservedNames).map(x => x.toUpperCase()));
@@ -19,29 +19,18 @@ const reservedNameSet = new Set(Object.values(AccessReservedNames).map(x => x.to
 export interface AccessHints {
 
   enabled: boolean;
-  hasMethodFace: boolean;
-  hasMethodHand: boolean;
-  hasMethodMobile: boolean;
-  hasMethodNfc: boolean;
-  hasMethodPin: boolean;
-  hasMethodQr: boolean;
-  hasMethodTwoStep: boolean;
   hasSideDoor: boolean;
   hasWiringDps: boolean;
   hasWiringRel: boolean;
   hasWiringRen: boolean;
   hasWiringRex: boolean;
   hasWiringSideDoorDps: boolean;
-  ledStatus: boolean;
   logDoorbell: boolean;
   logDps: boolean;
   logLock: boolean;
-  logMotion: boolean;
   logRel: boolean;
   logRen: boolean;
   logRex: boolean;
-  motionDuration: number;
-  occupancyDuration: number;
   separateAccessMethods: boolean;
   separateDoorbell: boolean;
   separateSensors: boolean;
@@ -134,37 +123,12 @@ export abstract class AccessDevice extends AccessBase {
   protected configureHints(): boolean {
 
     this.hints.enabled = this.hasFeature('Device');
-    this.hints.logMotion = this.hasFeature('Log.Motion');
-    this.hints.motionDuration = this.getFeatureNumber('Motion.Duration') ?? ACCESS_MOTION_DURATION;
-    this.hints.occupancyDuration = this.getFeatureNumber('Motion.OccupancySensor.Duration') ?? ACCESS_OCCUPANCY_DURATION;
     this.hints.syncName = this.hasFeature('Device.SyncName');
-
-    // Sanity check motion detection duration. Make sure it's never less than 2 seconds so we can actually alert the user.
-    if(this.hints.motionDuration < 2) {
-
-      this.hints.motionDuration = 2;
-    }
-
-    // Sanity check occupancy detection duration. Make sure it's never less than 60 seconds so we can actually alert the user.
-    if(this.hints.occupancyDuration < 60) {
-
-      this.hints.occupancyDuration = 60;
-    }
 
     // Inform the user if we've opted for something other than the defaults.
     if(!this.hints.syncName) {
 
       this.log.info('Device name synchronization with HomeKit is disabled.');
-    }
-
-    if(this.hints.motionDuration !== ACCESS_MOTION_DURATION) {
-
-      this.log.info('Motion event duration set to %s seconds.', this.hints.motionDuration);
-    }
-
-    if(this.hints.occupancyDuration !== ACCESS_OCCUPANCY_DURATION) {
-
-      this.log.info('Occupancy event duration set to %s seconds.', this.hints.occupancyDuration);
     }
 
     return true;
@@ -222,259 +186,6 @@ export abstract class AccessDevice extends AccessBase {
     }
   }
 
-  // Configure the Access motion sensor for HomeKit.
-  protected configureMotionSensor(isEnabled = true): boolean {
-
-    // Find the motion sensor service, if it exists.
-    let motionService = this.accessory.getService(this.hap.Service.MotionSensor);
-
-    // Have we disabled the motion sensor?
-    if(!isEnabled) {
-
-      if(motionService) {
-
-        this.accessory.removeService(motionService);
-        this.controller.mqtt?.unsubscribe(this.id, 'motion/trigger');
-        this.log.info('Disabling motion sensor.');
-      }
-
-      this.configureMotionSwitch(isEnabled);
-      this.configureMotionTrigger(isEnabled);
-
-      return false;
-    }
-
-    // We don't have a motion sensor, let's add it to the device.
-    if(!motionService) {
-
-      // We don't have it, add the motion sensor to the device.
-      motionService = new this.hap.Service.MotionSensor(this.accessoryName);
-
-      this.accessory.addService(motionService);
-
-      this.log.info('Enabling motion sensor.');
-    }
-
-    // Initialize the state of the motion sensor.
-    motionService.displayName = this.accessoryName;
-    motionService.updateCharacteristic(this.hap.Characteristic.Name, this.accessoryName);
-    motionService.updateCharacteristic(this.hap.Characteristic.MotionDetected, false);
-    motionService.updateCharacteristic(this.hap.Characteristic.StatusActive, this.isOnline);
-
-    motionService.getCharacteristic(this.hap.Characteristic.StatusActive).onGet(() => {
-
-      return this.isOnline;
-    });
-
-    // Configure our MQTT support.
-    this.configureMqttMotionTrigger();
-
-    // Configure any motion switches or triggers the user may have enabled or disabled.
-    this.configureMotionSwitch(isEnabled);
-    this.configureMotionTrigger(isEnabled);
-
-    return true;
-  }
-
-  // Configure a switch to easily activate or deactivate motion sensor detection for HomeKit.
-  private configureMotionSwitch(isEnabled = true): boolean {
-
-    // Find the switch service, if it exists.
-    let switchService = this.accessory.getServiceById(this.hap.Service.Switch, AccessReservedNames.SWITCH_MOTION_SENSOR);
-
-    // Motion switches are disabled by default unless the user enables them.
-    if(!isEnabled || !this.hasFeature('Motion.Switch')) {
-
-      if(switchService) {
-
-        this.accessory.removeService(switchService);
-      }
-
-      // If we disable the switch, make sure we fully reset it's state. Otherwise, we can end up in a situation (e.g. liveview switches) where we have
-      // disabled motion detection with no meaningful way to enable it again.
-      this.accessory.context.detectMotion = true;
-
-      return false;
-    }
-
-    this.log.info('Enabling motion sensor switch.');
-
-    const switchName = this.accessoryName + ' Motion Events';
-
-    // Add the switch to the device, if needed.
-    if(!switchService) {
-
-      switchService = new this.hap.Service.Switch(switchName, AccessReservedNames.SWITCH_MOTION_SENSOR);
-
-      switchService.addOptionalCharacteristic(this.hap.Characteristic.ConfiguredName);
-      this.accessory.addService(switchService);
-    }
-
-    // Activate or deactivate motion detection.
-    switchService.getCharacteristic(this.hap.Characteristic.On).onGet(() => {
-
-      return this.accessory.context.detectMotion === true;
-    });
-
-    switchService.getCharacteristic(this.hap.Characteristic.On).onSet((value: CharacteristicValue) => {
-
-      if(this.accessory.context.detectMotion !== value) {
-
-        this.log.info('Motion detection %s.', (value === true) ? 'enabled' : 'disabled');
-      }
-
-      this.accessory.context.detectMotion = value === true;
-    });
-
-    // Initialize the switch state.
-    if(!('detectMotion' in this.accessory.context)) {
-
-      this.accessory.context.detectMotion = true;
-    }
-
-    switchService.updateCharacteristic(this.hap.Characteristic.ConfiguredName, switchName);
-    switchService.updateCharacteristic(this.hap.Characteristic.On, this.accessory.context.detectMotion as boolean);
-
-    return true;
-  }
-
-  // Configure a switch to manually trigger a motion sensor event for HomeKit.
-  private configureMotionTrigger(isEnabled = true): boolean {
-
-    // Find the switch service, if it exists.
-    let triggerService = this.accessory.getServiceById(this.hap.Service.Switch, AccessReservedNames.SWITCH_MOTION_TRIGGER);
-
-    // Motion triggers are disabled by default and primarily exist for automation purposes.
-    if(!isEnabled || !this.hasFeature('Motion.Trigger')) {
-
-      if(triggerService) {
-
-        this.accessory.removeService(triggerService);
-      }
-
-      return false;
-    }
-
-    const triggerName = this.accessoryName + ' Motion Trigger';
-
-    // Add the switch to the device, if needed.
-    if(!triggerService) {
-
-      triggerService = new this.hap.Service.Switch(triggerName, AccessReservedNames.SWITCH_MOTION_TRIGGER);
-
-      triggerService.addOptionalCharacteristic(this.hap.Characteristic.ConfiguredName);
-      this.accessory.addService(triggerService);
-    }
-
-    const motionService = this.accessory.getService(this.hap.Service.MotionSensor);
-    const switchService = this.accessory.getServiceById(this.hap.Service.Switch, AccessReservedNames.SWITCH_MOTION_SENSOR);
-
-    // Activate or deactivate motion detection.
-    triggerService.getCharacteristic(this.hap.Characteristic.On).onGet(() => {
-
-      return motionService?.getCharacteristic(this.hap.Characteristic.MotionDetected).value === true;
-    });
-
-    triggerService.getCharacteristic(this.hap.Characteristic.On).onSet((isOn: CharacteristicValue) => {
-
-      if(isOn) {
-
-        // Check to see if motion events are disabled.
-        if(switchService && !switchService.getCharacteristic(this.hap.Characteristic.On).value) {
-
-          setTimeout(() => triggerService.updateCharacteristic(this.hap.Characteristic.On, false), HK_CHARACTERISTIC_REVERT_DELAY_MS);
-
-        } else {
-
-          // Trigger the motion event.
-          this.controller.events.motionEventHandler(this);
-
-          // Inform the user.
-          this.log.info('Motion event triggered.');
-        }
-
-        return;
-      }
-
-      // If the motion sensor is still on, we should be as well.
-      if(motionService?.getCharacteristic(this.hap.Characteristic.MotionDetected).value) {
-
-        setTimeout(() => triggerService.updateCharacteristic(this.hap.Characteristic.On, true), HK_CHARACTERISTIC_REVERT_DELAY_MS);
-      }
-    });
-
-    // Initialize the switch.
-    triggerService.updateCharacteristic(this.hap.Characteristic.ConfiguredName, triggerName);
-    triggerService.updateCharacteristic(this.hap.Characteristic.On, false);
-
-    this.log.info('Enabling motion sensor automation trigger.');
-
-    return true;
-  }
-
-  // Configure MQTT motion triggers.
-  private configureMqttMotionTrigger(): boolean {
-
-    // Trigger a motion event in MQTT, if requested to do so.
-    this.controller.mqtt?.subscribe(this.id, 'motion/trigger', (message: Buffer) => {
-
-      const value = message.toString();
-
-      // When we get the right message, we trigger the motion event.
-      if(value.toLowerCase() !== 'true') {
-
-        return;
-      }
-
-      // Trigger the motion event.
-      this.controller.events.motionEventHandler(this);
-      this.log.info('Motion event triggered via MQTT.');
-    });
-
-    return true;
-  }
-
-  // Configure the Access occupancy sensor for HomeKit.
-  protected configureOccupancySensor(isEnabled = true): boolean {
-
-    // Find the occupancy sensor service, if it exists.
-    let occupancyService = this.accessory.getService(this.hap.Service.OccupancySensor);
-
-    // Occupancy sensors are disabled by default and primarily exist for automation purposes.
-    if(!isEnabled || !this.hasFeature('Motion.OccupancySensor')) {
-
-      if(occupancyService) {
-
-        this.accessory.removeService(occupancyService);
-        this.log.info('Disabling occupancy sensor.');
-      }
-
-      return false;
-    }
-
-    // We don't have an occupancy sensor, let's add it to the device.
-    if(!occupancyService) {
-
-      // We don't have it, add the occupancy sensor to the device.
-      occupancyService = new this.hap.Service.OccupancySensor(this.accessoryName);
-
-      this.accessory.addService(occupancyService);
-    }
-
-    // Initialize the state of the occupancy sensor.
-    occupancyService.updateCharacteristic(this.hap.Characteristic.OccupancyDetected, false);
-    occupancyService.updateCharacteristic(this.hap.Characteristic.StatusActive, this.isOnline);
-
-    occupancyService.getCharacteristic(this.hap.Characteristic.StatusActive).onGet(() => {
-
-      return this.isOnline;
-    });
-
-    this.log.info('Enabling occupancy sensor.');
-
-    return true;
-  }
-
   // Utility function to return a floating point configuration parameter on a device.
   public getFeatureFloat(option: string): Nullable<number | undefined> {
 
@@ -514,7 +225,7 @@ export abstract class AccessDevice extends AccessBase {
   // Return a unique identifier for an Access device.
   public get id(): string {
 
-    return this.uda.mac.replace(/:/g, '') + ((getDeviceCatalog(this.uda.device_type)?.appendsSourceId) ? '-' + this.uda.source_id.toUpperCase() : '');
+    return deviceIdentifier(this.uda);
   }
 
   // Utility function to return the fully enumerated name of this device.
