@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.2] - 2026-10-03
+
+### Fixed
+
+- **Decimal feature option values**: a decimal value such as `Enable.Hub.GateDuration.3.5` was read as a value of `5` scoped to a device with the id `3`, so the gate duration silently fell back to its default. A device-scoped decimal value (`Enable.Hub.GateDuration.<MAC>.3.5`) was ignored entirely. Decimal values are now read correctly at every scope.
+
+### Changed
+
+- **Stricter type checking in the shared library**: the library shared with homebridge-unifi-protect now passes TypeScript's `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` checks. There is no change in behavior.
+
 ## [1.3.1] - 2026-10-03
 
 ### Fixed
