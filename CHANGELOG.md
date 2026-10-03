@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-10-03
 
 > **Action required for some MQTT users**: TLS certificates of `mqtts://` and `ssl://` brokers are now verified. If your broker uses a self-signed certificate, set `mqttVerifyTls` to `false` for that controller (also available under *Advanced settings* in the plugin's settings UI).
 
