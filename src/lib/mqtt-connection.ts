@@ -93,7 +93,7 @@ export class MqttConnection extends EventEmitter {
   private pending: Buffer[];
   private pendingLength: number;
   private pendingPings: number;
-  private password?: string;
+  private password?: string | undefined;
   private port: number;
   private queuedPackets: { body: Buffer; type: PacketType }[];
   private reconnectPeriod: number;
@@ -102,7 +102,7 @@ export class MqttConnection extends EventEmitter {
   private socket: Nullable<net.Socket>;
   private subscribedTopics: Set<string>;
   private useTls: boolean;
-  private username?: string;
+  private username?: string | undefined;
 
   // Create a new MQTT connection to a broker URL and initiate the first connection attempt.
   constructor(brokerUrl: string, options: MqttConnectionOptions = {}) {
@@ -250,7 +250,9 @@ export class MqttConnection extends EventEmitter {
       return;
     }
 
-    this.buffer = (this.pending.length === 1) ? this.pending[0] : Buffer.concat(this.pending, this.pendingLength);
+    const [ firstChunk ] = this.pending;
+
+    this.buffer = ((this.pending.length === 1) && firstChunk) ? firstChunk : Buffer.concat(this.pending, this.pendingLength);
     this.pending = [];
     this.pendingLength = 0;
     this.bytesNeeded = 0;
@@ -293,7 +295,7 @@ export class MqttConnection extends EventEmitter {
           return;
         }
 
-        const byte = this.buffer[offset++];
+        const byte = this.buffer[offset++] ?? 0;
 
         length += (byte & 0x7F) * multiplier;
         multiplier *= 128;
@@ -331,7 +333,7 @@ export class MqttConnection extends EventEmitter {
 
       const packet = this.buffer.subarray(offset, offset + length);
 
-      this.processPacket(this.buffer[0], packet);
+      this.processPacket(this.buffer[0] ?? 0, packet);
       this.buffer = this.buffer.subarray(offset + length);
     }
   }

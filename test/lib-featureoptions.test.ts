@@ -203,3 +203,38 @@ describe('FeatureOptions', () => {
     });
   });
 });
+
+describe('FeatureOptions decimal values', () => {
+
+  it('reads a global decimal value rather than treating its integer part as a scope id', () => {
+
+    const options = create([ 'Enable.Hub.GateDuration.3.5' ]);
+
+    expect(options.getFloat('Hub.GateDuration')).toBe(3.5);
+    expect(options.getFloat('Hub.GateDuration', DEVICE, CONTROLLER)).toBe(3.5);
+  });
+
+  it('reads a device-scoped decimal value', () => {
+
+    const options = create([ 'Enable.Hub.GateDuration.' + DEVICE + '.7.25' ]);
+
+    expect(options.getFloat('Hub.GateDuration', DEVICE)).toBe(7.25);
+    expect(options.getFloat('Hub.GateDuration')).toBe(2.5);
+  });
+
+  it('still reads a scope id followed by an integer value', () => {
+
+    const options = create([ 'Enable.Hub.GateDuration.' + CONTROLLER + '.4' ]);
+
+    expect(options.getFloat('Hub.GateDuration', DEVICE, CONTROLLER)).toBe(4);
+    expect(options.getFloat('Hub.GateDuration')).toBe(2.5);
+  });
+
+  it('reads decimals when an identifier recognizer is supplied', () => {
+
+    const options = new FeatureOptions(CATEGORIES, OPTIONS, [ 'Enable.Hub.GateDuration.3.5' ],
+      { isIdentifier: segment => /^[0-9a-f]{12}$/i.test(segment) });
+
+    expect(options.getFloat('Hub.GateDuration')).toBe(3.5);
+  });
+});

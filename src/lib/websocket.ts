@@ -273,7 +273,9 @@ export class WebSocketClient extends EventEmitter {
       return;
     }
 
-    this.buffer = (this.pending.length === 1) ? this.pending[0] : Buffer.concat(this.pending, this.pendingLength);
+    const [ firstChunk ] = this.pending;
+
+    this.buffer = ((this.pending.length === 1) && firstChunk) ? firstChunk : Buffer.concat(this.pending, this.pendingLength);
     this.pending = [];
     this.pendingLength = 0;
     this.bytesNeeded = 0;
@@ -288,10 +290,12 @@ export class WebSocketClient extends EventEmitter {
         return;
       }
 
-      const isFinal = !!(this.buffer[0] & 0x80);
-      const opcode = this.buffer[0] & 0x0F;
-      const isMasked = !!(this.buffer[1] & 0x80);
-      let payloadLength = this.buffer[1] & 0x7F;
+      const firstByte = this.buffer.readUInt8(0);
+      const secondByte = this.buffer.readUInt8(1);
+      const isFinal = !!(firstByte & 0x80);
+      const opcode = firstByte & 0x0F;
+      const isMasked = !!(secondByte & 0x80);
+      let payloadLength = secondByte & 0x7F;
       let offset = 2;
 
       // Decode the extended payload lengths.
@@ -373,7 +377,7 @@ export class WebSocketClient extends EventEmitter {
 
         for(let index = 0; index < payload.length; index++) {
 
-          payload[index] ^= mask[index % 4];
+          payload[index] = (payload[index] ?? 0) ^ (mask[index % 4] ?? 0);
         }
       }
 
@@ -521,7 +525,7 @@ export class WebSocketClient extends EventEmitter {
 
     for(let index = 0; index < masked.length; index++) {
 
-      masked[index] ^= mask[index % 4];
+      masked[index] = (masked[index] ?? 0) ^ (mask[index % 4] ?? 0);
     }
 
     this.socket.write(Buffer.concat([ Buffer.from([ 0x80 | opcode ]), lengthHeader, mask, masked ]));
