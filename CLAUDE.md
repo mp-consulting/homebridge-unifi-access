@@ -10,7 +10,7 @@ Homebridge plugin (`@mp-consulting/homebridge-unifi-access`) providing HomeKit s
 - **Runtime**: Node.js >= 22, Homebridge >= 1.8.0
 - **Testing**: Vitest with v8 coverage
 - **Linting**: ESLint 10 flat config with typescript-eslint
-- **Dependencies**: The plugin itself has none at runtime — the UniFi Access API client (`src/unifi/`) and plugin utilities (`src/lib/`) are implemented in-repo on Node.js built-ins. The webUI server's Assistant routes use `@mp-consulting/homebridge-ai-kit` (the only runtime dependency)
+- **Dependencies**: The plugin itself has none at runtime — the UniFi Access API client (`src/unifi/`) and plugin utilities (`src/lib/`) are implemented in-repo on Node.js built-ins. The only runtime dependency is `@mp-consulting/homebridge-ai-core`, used by the webUI server's Assistant routes (its only dependency is `ajv`)
 
 ## Commands
 
@@ -55,7 +55,7 @@ docs/
 └── Events.md                   # Event types and payloads
 homebridge-ui/                  # Custom config UI with discovery wizard
 ├── server.js                   # webUI server (imports the compiled plugin from ../dist)
-├── assistant.js                # Assistant routes (/ai/*, from @mp-consulting/homebridge-ai-kit/plugin) + UniFi Access system context
+├── assistant.js                # Assistant routes (/ai/*, from @mp-consulting/homebridge-ai-core/plugin) + UniFi Access system context
 └── public/modules/assistant.js # Client-side Assistant: Explain buttons, error scrubbing, device/controller whitelists
 ```
 
