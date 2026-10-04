@@ -7,7 +7,32 @@ import { $, escapeHtml, showScreen } from '../dom-helpers.js';
 import { CATEGORY_COLORS, CATEGORY_ICONS } from '../constants.js';
 import { buildScopeSelector, getCurrentScope, updateCascade } from './scope.js';
 import { countEnabled, countModified, getOptionState, isOptionModified } from './option-state.js';
+import { assistantController, assistantDevice, deviceProblem, renderExplain, scrubText } from '../assistant.js';
 import { getControllers, saveConfigSilent, state } from '../state.js';
+
+// Show a controller connection error above the options, with an "Explain" button when the Assistant is on.
+const showOptionsProblem = (ctrl, message) => {
+
+  const container = $('optionsProblem');
+  const alert = document.createElement('div');
+  const text = document.createElement('div');
+  const slot = document.createElement('div');
+
+  alert.className = 'alert alert-danger mb-0';
+  text.textContent = message;
+  slot.className = 'mt-2';
+  alert.append(text, slot);
+  container.replaceChildren(alert);
+  container.style.display = 'block';
+
+  renderExplain(slot, {
+
+    context: 'Loading the devices of a configured UniFi Access controller for the feature options screen of the plugin webUI failed.',
+    device: assistantController(ctrl),
+    error: scrubText(message, [ ctrl?.address ]),
+    title: 'Why can the devices not be loaded?',
+  });
+};
 
 export const openFeatureOptions = async (controllerIndex) => {
 
@@ -21,6 +46,8 @@ export const openFeatureOptions = async (controllerIndex) => {
   $('deviceInfoPanel').style.display = 'none';
   $('unsavedChanges').style.display = 'none';
   $('optionsSearch').value = '';
+  $('optionsProblem').style.display = 'none';
+  $('optionsProblem').replaceChildren();
 
   try {
 
@@ -62,12 +89,20 @@ export const openFeatureOptions = async (controllerIndex) => {
       }
     }
 
+    if(!devices?.length) {
+
+      const errorDetail = await homebridge.request('/getErrorMessage');
+
+      showOptionsProblem(ctrl, 'Unable to load the devices of this controller. ' + (errorDetail || 'Check its address and credentials.'));
+    }
+
     buildScopeSelector(ctrl);
     renderOptions();
   } catch(e) {
 
 
     homebridge.toast.error('Failed to load: ' + e.message);
+    showOptionsProblem(ctrl, 'Failed to load: ' + e.message);
   } finally {
 
 
@@ -101,6 +136,23 @@ export const renderOptions = () => {
 
     statusEl.textContent = scope.device.is_online ? 'Connected' : 'Disconnected';
     statusEl.className = scope.device.is_online ? 'text-success' : 'text-danger';
+
+    const problem = deviceProblem(scope.device);
+
+    if(problem) {
+
+      renderExplain($('infoAssistant'), {
+
+        context: 'The user is looking at the feature options of a UniFi Access device in the plugin webUI.',
+        device: assistantDevice(scope.device),
+        error: problem,
+        title: 'Why is ' + (scope.device.name || 'this device') + ' disconnected?',
+      });
+    } else {
+
+      $('infoAssistant').style.display = 'none';
+      $('infoAssistant').replaceChildren();
+    }
   } else {
 
 

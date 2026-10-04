@@ -22,6 +22,7 @@ Complete HomeKit support for the [UniFi Access](https://ui.com/door-access) ecos
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Assistant](#assistant)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
@@ -51,6 +52,7 @@ This plugin discovers all your supported UniFi Access devices and makes them ava
 - **Realtime device detection** - automatically adds and removes devices in HomeKit as they change on your controller, without restarting Homebridge
 - **Customizable** - [feature options](docs/FeatureOptions.md) let you show/hide specific devices and tailor behavior via the built-in webUI
 - **MQTT support** - publish events to an [MQTT broker](docs/MQTT.md) for further automation
+- **Assistant (optional)** - explains controller connection, discovery and device problems in the webUI, using the AI provider you set up in Homebridge AI Kit
 
 ## Prerequisites
 
@@ -106,6 +108,37 @@ The recommended way to configure the plugin is through the [Homebridge UI](https
 | `options` | Array of [feature options](docs/FeatureOptions.md) for granular control |
 | `ringDelay` | Delay in seconds between doorbell rings (default: `0`) |
 
+## Assistant
+
+The webUI can explain problems with the **Assistant**. It is off until you set up an AI
+provider once for all MP Consulting plugins in
+[Homebridge AI Kit](https://github.com/mp-consulting/homebridge-ai-kit) (or the Homebridge
+Glass UI): the plugin reads the shared `HomebridgeAiKit` platform block from `config.json`
+and has no AI settings of its own. When it is not set up, the webUI looks exactly as before,
+with a small tip under the list of controllers.
+
+When it is enabled, an **Explain** button appears next to:
+
+- a controller that fails to connect when you add or edit it (login, privileges, TLS
+  certificate pin, unreachable address),
+- a controller shown as **Offline** in the controller list,
+- an empty or failed discovery,
+- a controller whose devices cannot be loaded on the feature options screen,
+- a device shown as disconnected or rebooting on the feature options screen.
+
+The answer streams into an Assistant panel below, with UniFi Access context (local users,
+the plugin's error messages, TLS pinning, discovery).
+
+What is sent to the provider: the error message with the controller address, IP addresses
+and MAC addresses replaced by placeholders; for a controller only its name and whether TLS
+verification and MQTT are set up; for a device its name, model, firmware, capabilities and
+online/adopted/rebooting flags. The controller address, username and password, the MQTT
+broker URL, and device IP addresses, MAC addresses and identifiers are never sent, and the
+provider's API key stays on the Homebridge server.
+
+There is no "Describe Your Setup" here: the configuration is the list of controllers (with
+credentials) and the feature options, which the webUI manages.
+
 ## Documentation
 
 - [Feature Options](docs/FeatureOptions.md) - show/hide devices and customize behavior
@@ -131,6 +164,12 @@ npm test
 # Start in dev mode with live reload
 npm run watch
 ```
+
+The build vendors `@mp-consulting/homebridge-ui-kit` and Bootstrap into
+`homebridge-ui/public/lib/` with `mp-ui-kit-copy --vendor`. Until
+`@mp-consulting/homebridge-ai-kit` 2.0.0 and `@mp-consulting/homebridge-ui-kit` 1.2.0
+are published, both are installed from sibling checkouts (`file:../homebridge-mcp-server`
+and `file:../homebridge-ui-kit`); they must become `^2.0.0` and `^1.2.0` before release.
 
 ### Event Schema Monitor
 

@@ -130,6 +130,8 @@
 
         <div id="setupError" class="alert alert-danger" style="display: none;">
           <i class="bi bi-exclamation-circle"></i> <span id="setupErrorText"></span>
+          <!-- Assistant explanation of the connection error (filled by modules/assistant.js) -->
+          <div id="setupAssistant" class="mt-2" style="display: none;"></div>
         </div>
 
         <div class="alert alert-info">
@@ -162,6 +164,10 @@
           <i class="bi bi-life-preserver"></i> Support
         </button>
       </div>
+      <p id="assistantHint" class="small text-body-secondary mt-3" style="display: none;">
+        <i class="bi bi-info-circle me-1"></i>Tip: install and enable <strong>Homebridge AI Kit</strong> to get the Assistant,
+        which explains controller connection and device problems here.
+      </p>
     </div>
 
     <!-- Screen: Feature Options (split layout) -->
@@ -223,6 +229,8 @@
                 <div class="mb-2"><small class="text-muted d-block">MAC</small><code id="infoMac" style="font-size:0.75rem"></code></div>
                 <div class="mb-2"><small class="text-muted d-block">IP</small><code id="infoIp"></code></div>
                 <div><small class="text-muted d-block">Status</small><span id="infoStatus"></span></div>
+                <!-- Assistant explanation of a disconnected device (filled by modules/assistant.js) -->
+                <div id="infoAssistant" class="mt-2" style="display: none;"></div>
               </div>
             </div>
 
@@ -269,6 +277,9 @@
             </div>
             <p class="mt-2 text-muted">Loading options...</p>
           </div>
+
+          <!-- Controller connection error + Assistant explanation (filled by feature-options/renderer.js) -->
+          <div id="optionsProblem" class="mb-3" style="display: none;"></div>
 
           <!-- Options container -->
           <div id="optionsContainer" class="mb-3"></div>

@@ -10,6 +10,7 @@ import { ACCESS_TLS_PIN_FILE, isValidAddress } from '../dist/settings.js';
 import { AccessApi, AccessTlsPinStore } from '../dist/unifi/index.js';
 import { deviceIdentifier } from '../dist/access-device-catalog.js';
 import { HomebridgePluginUiServer } from '../dist/lib/ui-server.js';
+import { registerAssistant } from './assistant.js';
 import dgram from 'node:dgram';
 import https from 'node:https';
 import os from 'node:os';
@@ -66,6 +67,9 @@ class PluginUiServer extends HomebridgePluginUiServer {
 
     // Register checkStatus() with the Homebridge server API.
     this.#registerCheckStatus();
+
+    // Assistant: /ai/status, /ai/explain, /ai/ask, /ai/config (configured in Homebridge AI Kit).
+    registerAssistant(this);
 
     this.ready();
   }
