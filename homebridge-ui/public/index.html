@@ -202,7 +202,7 @@
                       <div class="scope-hint">All devices</div>
                     </div>
                   </div>
-                  <div class="scope-connector"><div class="scope-connector-line"></div></div>
+                  <div class="scope-connector" aria-hidden="true"></div>
                   <div class="scope-level" data-scope="controller">
                     <div class="scope-dot"><i class="bi bi-server"></i></div>
                     <div class="scope-text">
@@ -210,7 +210,7 @@
                       <div class="scope-hint">Overrides global</div>
                     </div>
                   </div>
-                  <div class="scope-connector"><div class="scope-connector-line"></div></div>
+                  <div class="scope-connector" aria-hidden="true"></div>
                   <div class="scope-level" data-scope="device">
                     <div class="scope-dot"><i class="bi bi-cpu"></i></div>
                     <div class="scope-text">
@@ -229,8 +229,6 @@
                 <div class="mb-2"><small class="text-muted d-block">MAC</small><code id="infoMac" style="font-size:0.75rem"></code></div>
                 <div class="mb-2"><small class="text-muted d-block">IP</small><code id="infoIp"></code></div>
                 <div><small class="text-muted d-block">Status</small><span id="infoStatus"></span></div>
-                <!-- Assistant explanation of a disconnected device (filled by modules/assistant.js) -->
-                <div id="infoAssistant" class="mt-2" style="display: none;"></div>
               </div>
             </div>
 
@@ -280,6 +278,10 @@
 
           <!-- Controller connection error + Assistant explanation (filled by feature-options/renderer.js) -->
           <div id="optionsProblem" class="mb-3" style="display: none;"></div>
+
+          <!-- Disconnected device + Assistant explanation (filled by feature-options/renderer.js). In the main column, not the narrow scope sidebar, so the
+               answer panel gets the full width. -->
+          <div id="infoAssistant" class="mb-3" style="display: none;"></div>
 
           <!-- Options container -->
           <div id="optionsContainer" class="mb-3"></div>
