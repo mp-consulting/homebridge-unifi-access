@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Feature options**: changing an option updates only its row and category instead of rebuilding the list, so keyboard focus stays put and switches animate. The "x/y on" count and progress bar count only the options shown for the device.
+- **Feature options**: hubs that are also readers are listed once, the device panel labels the serial number as "Serial", option values are escaped, long option names and controller names wrap, and an empty search says so.
+
+### Changed
+
+- **Settings page** uses `@mp-consulting/homebridge-ui-kit` 1.4.0: long device names wrap to two lines, tabs scroll instead of wrapping, buttons press in, hover effects only apply with a mouse or trackpad, dialogs and toasts ease in and out, and the Assistant glow no longer repaints every frame.
+- **Feature options**: the category chevron rotates and the progress bar animates with `transform`; non-clickable cards no longer lift on hover.
+
 ## [1.4.2] - 2026-10-04
 
 ### Fixed

@@ -29,7 +29,8 @@ export const buildScopeSelector = (ctrl) => {
   addOpt('controller:' + ctrl.address, 'Controller: ' + (ctrl.name || ctrl.address));
 
   const hubs = state.devices.filter(d => (d.display_model !== 'controller') && d.capabilities?.includes('is_hub'));
-  const readers = state.devices.filter(d => (d.display_model !== 'controller') && d.capabilities?.includes('is_reader'));
+  // A device that is both a hub and a reader is listed once, under Hubs.
+  const readers = state.devices.filter(d => (d.display_model !== 'controller') && d.capabilities?.includes('is_reader') && !d.capabilities.includes('is_hub'));
 
   const addGroup = (label, items) => {
 
